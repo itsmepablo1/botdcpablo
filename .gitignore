@@ -1,0 +1,29 @@
+# ── Sensitive files ──
+.env
+*.db
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ── Logs ──
+*.log
+logs/
+
+# ── Backgrounds (user uploads) ──
+assets/backgrounds/*.png
+assets/backgrounds/*.jpg
+assets/backgrounds/*.jpeg
+assets/backgrounds/*.webp
+
+# ── OS ──
+.DS_Store
+Thumbs.db
