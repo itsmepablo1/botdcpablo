@@ -101,11 +101,12 @@ function setupLogout() {
 
 function showAlert(id, msg, type = 'success') {
   const el = document.getElementById(id);
-  if (!el) return;
+  if (!el) { console.warn('showAlert: element not found:', id); return; }
   el.textContent = msg;
   el.className = `alert ${type}`;
   el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 4000);
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => { el.style.display = 'none'; }, 8000);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -395,70 +396,88 @@ async function disableStreaming() {
 // SYSTEM CONTROL
 // ─────────────────────────────────────────────────────────────────────────────
 
+function _setSysStatus(running, text) {
+  const dot = document.getElementById('sys-status-dot');
+  const txt = document.getElementById('sys-status-text');
+  if (dot) dot.style.background = running ? '#22c55e' : '#ef4444';
+  if (txt) txt.textContent = text;
+}
+
 async function checkBotStatus() {
+  _setSysStatus(false, '⏳ Mengecek status...');
   try {
     const res  = await apiFetch('/api/system/status');
+    if (!res.ok) { _setSysStatus(false, `❌ API error (${res.status})`); return; }
     const data = await res.json();
-    const dot  = document.getElementById('sys-status-dot');
-    const txt  = document.getElementById('sys-status-text');
-    if (!dot || !txt) return;
     if (data.running) {
-      dot.style.background = '#22c55e';
-      txt.textContent = `✅ Bot berjalan (PID: ${data.pids.join(', ')})`;
+      _setSysStatus(true, `✅ Bot berjalan — PID: ${data.pids.join(', ')}`);
     } else {
-      dot.style.background = '#ef4444';
-      txt.textContent = '❌ Bot tidak berjalan';
+      _setSysStatus(false, '❌ Bot tidak berjalan');
     }
   } catch (e) {
-    const txt = document.getElementById('sys-status-text');
-    if (txt) txt.textContent = '⚠️ Tidak bisa cek status';
+    _setSysStatus(false, `⚠️ Tidak bisa cek status: ${e.message}`);
+    console.error('checkBotStatus error:', e);
   }
 }
 
 async function restartBot() {
   const btn = document.getElementById('restartBtn');
+  if (!btn) { console.error('restartBtn not found'); return; }
   btn.disabled = true;
   btn.textContent = '⏳ Merestart...';
-  showAlert('sys-alert', '⏳ Memproses restart bot...', 'success');
+  _setSysStatus(false, '⏳ Sedang merestart bot...');
+  showAlert('sys-alert', '⏳ Memproses restart bot, mohon tunggu...', 'success');
   try {
     const res  = await apiFetch('/api/system/restart', { method: 'POST' });
+    if (!res.ok) {
+      showAlert('sys-alert', `❌ API error ${res.status}`, 'error');
+      _setSysStatus(false, `❌ API error ${res.status}`);
+      btn.disabled = false; btn.textContent = '🔄 Restart Bot';
+      return;
+    }
     const data = await res.json();
     if (data.status === 'ok') {
-      showAlert('sys-alert', `✅ ${data.message} (via ${data.method})`, 'success');
-      setTimeout(checkBotStatus, 4000);
+      showAlert('sys-alert', `✅ ${data.message}`, 'success');
+      _setSysStatus(true, `✅ Restart berhasil via ${data.method}`);
+      setTimeout(checkBotStatus, 5000);
     } else {
-      showAlert('sys-alert', `❌ Gagal restart: ${data.message}`, 'error');
+      showAlert('sys-alert', `❌ ${data.message}`, 'error');
+      _setSysStatus(false, `❌ Restart gagal`);
     }
   } catch (e) {
     showAlert('sys-alert', `❌ Error: ${e.message}`, 'error');
+    _setSysStatus(false, `❌ Error: ${e.message}`);
+    console.error('restartBot error:', e);
   }
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.textContent = '🔄 Restart Bot';
-  }, 5000);
+  setTimeout(() => { btn.disabled = false; btn.textContent = '🔄 Restart Bot'; }, 6000);
 }
 
 async function loadBotLogs() {
   const box = document.getElementById('sys-log-box');
+  if (!box) { console.error('sys-log-box not found'); return; }
   box.style.display = 'block';
-  box.innerHTML = '<span style="color:#6b7280">Memuat log...</span>';
+  box.innerHTML = '<span style="color:#6b7280">⏳ Memuat log...</span>';
   try {
     const res  = await apiFetch('/api/system/logs?lines=80');
+    if (!res.ok) { box.innerHTML = `<span style="color:#ef4444">API error: ${res.status}</span>`; return; }
     const data = await res.json();
+    if (data.error) { box.innerHTML = `<span style="color:#ef4444">Error: ${escHtml(data.error)}</span>`; return; }
     if (!data.lines || !data.lines.length) {
-      box.innerHTML = '<span style="color:#6b7280">Log kosong atau file belum ada.</span>';
+      box.innerHTML = `<span style="color:#6b7280">Log kosong. Path: ${escHtml(data.log_path || data.message || '—')}</span>`;
       return;
     }
     box.innerHTML = data.lines.map(l => {
       let color = '#a3a3a3';
-      if (l.includes('ERROR') || l.includes('❌') || l.includes('Failed')) color = '#ef4444';
-      else if (l.includes('✅') || l.includes('Synced') || l.includes('ready')) color = '#22c55e';
-      else if (l.includes('⚠') || l.includes('WARNING')) color = '#f59e0b';
-      return `<div style="color:${color}">${escHtml(l)}</div>`;
+      if (l.match(/ERROR|❌|Failed|Traceback/i)) color = '#ef4444';
+      else if (l.match(/✅|Synced|ready|on_ready/i)) color = '#22c55e';
+      else if (l.match(/⚠|WARNING|warn/i)) color = '#f59e0b';
+      else if (l.match(/Loaded:|INFO/i)) color = '#60a5fa';
+      return `<div style="color:${color};white-space:pre-wrap">${escHtml(l)}</div>`;
     }).join('');
     box.scrollTop = box.scrollHeight;
   } catch (e) {
-    box.innerHTML = `<span style="color:#ef4444">Error: ${e.message}</span>`;
+    box.innerHTML = `<span style="color:#ef4444">Error: ${escHtml(e.message)}</span>`;
+    console.error('loadBotLogs error:', e);
   }
 }
 
