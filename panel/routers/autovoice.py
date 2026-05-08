@@ -13,9 +13,14 @@ router = APIRouter()
 async def get_autovoice(guild_id: int, payload: dict = Depends(verify_token)):
     cfg = await db.get_guild_config(guild_id)
     return {
-        "guild_id":           guild_id,
+        "guild_id":             guild_id,
         "autovoice_channel_id": cfg.get("autovoice_channel_id"),
     }
+
+@router.get("/{guild_id}/active-vcs")
+async def get_active_vcs(guild_id: int, payload: dict = Depends(verify_token)):
+    vcs = await db.get_all_auto_voice_details(guild_id)
+    return vcs
 
 class AutoVoiceConfig(BaseModel):
     guild_id:   int

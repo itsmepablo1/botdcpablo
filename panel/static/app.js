@@ -268,6 +268,35 @@ async function loadAutoVoice() {
   const data = await res.json();
   document.getElementById('av-chid').value = data.autovoice_channel_id || '';
   showAlert('av-alert', '✅ Config dimuat!', 'success');
+  await loadActiveVCs();
+}
+
+async function loadActiveVCs() {
+  const gid = document.getElementById('av-guild').value.trim();
+  if (!gid) return;
+  const res  = await apiFetch(`/api/autovoice/${gid}/active-vcs`);
+  const vcs  = await res.json();
+  const tbody = document.getElementById('av-vcs-body');
+  const countEl = document.getElementById('av-vc-count');
+
+  if (!vcs || !vcs.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Tidak ada VC aktif saat ini.</td></tr>';
+    countEl.textContent = '0 channel aktif';
+    return;
+  }
+  countEl.textContent = `${vcs.length} channel aktif`;
+  tbody.innerHTML = vcs.map(v => `
+    <tr>
+      <td><code style="color:#c4b5fd">${v.channel_id}</code></td>
+      <td>${escHtml(v.name || '—')}</td>
+      <td><code>${v.owner_id}</code></td>
+      <td>${v.user_limit ? v.user_limit : '<span class="text-muted">∞</span>'}</td>
+      <td>${v.is_locked
+        ? '<span style="color:#ef4444">🔒 Terkunci</span>'
+        : '<span style="color:#22c55e">🔓 Terbuka</span>'}</td>
+      <td style="color:var(--text3);font-size:12px">${v.created_at ? v.created_at.split('.')[0] : '—'}</td>
+    </tr>
+  `).join('');
 }
 
 async function saveAutoVoice() {
@@ -290,6 +319,7 @@ async function disableAutoVoice() {
   document.getElementById('av-chid').value = '';
   showAlert('av-alert', '✅ Auto Voice dinonaktifkan.', 'success');
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATUS CHANNEL

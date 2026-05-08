@@ -215,6 +215,14 @@ async def get_all_auto_voice_ids(guild_id: int) -> list:
         ) as cur:
             return [r[0] for r in await cur.fetchall()]
 
+async def get_all_auto_voice_details(guild_id: int) -> list:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM auto_voice_channels WHERE guild_id = ? ORDER BY created_at DESC", (guild_id,)
+        ) as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
 # ── Streamer Alerts ───────────────────────────────────────────────────────────
 
 async def add_streamer_alert(guild_id: int, user_id: int, platform: str, stream_url: str) -> int:

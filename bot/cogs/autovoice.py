@@ -59,6 +59,103 @@ class AutoVoice(commands.Cog):
         await db.set_guild_config(interaction.guild.id, autovoice_channel_id=None)
         await interaction.response.send_message("✅ Auto Voice dimatikan.", ephemeral=True)
 
+    # ── /setupvoice ──────────────────────────────────────────────────────────
+
+    setupvoice_group = app_commands.Group(
+        name="setupvoice",
+        description="Setup Auto Voice Channel otomatis"
+    )
+
+    @setupvoice_group.command(name="create", description="Buat kategori + hub voice channel untuk Auto VC secara otomatis")
+    @app_commands.describe(
+        category_name="Nama kategori yang akan dibuat (default: 🔊 Voice Hub)",
+        hub_name="Nama hub channel pemicu (default: ➕ Buat VC)"
+    )
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setupvoice_create(
+        self,
+        interaction: discord.Interaction,
+        category_name: str = "🔊 Voice Hub",
+        hub_name: str = "➕ Buat VC"
+    ):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+
+        # Buat kategori baru
+        category = await guild.create_category(
+            name=category_name,
+            reason=f"Auto Voice setup oleh {interaction.user}"
+        )
+
+        # Buat hub channel di dalam kategori
+        hub_ch = await guild.create_voice_channel(
+            name=hub_name,
+            category=category,
+            reason=f"Auto Voice hub oleh {interaction.user}"
+        )
+
+        # Simpan ke database
+        await db.set_guild_config(guild.id, autovoice_channel_id=hub_ch.id)
+
+        embed = discord.Embed(
+            title="✅ Auto Voice Berhasil Disetup!",
+            color=0x9333ea
+        )
+        embed.add_field(name="📁 Kategori", value=f"`{category.name}`", inline=True)
+        embed.add_field(name="🔊 Hub Channel", value=hub_ch.mention, inline=True)
+        embed.add_field(
+            name="📖 Cara Kerja",
+            value=(
+                f"Ketika member join {hub_ch.mention}, bot akan otomatis:\n"
+                "• Membuat voice channel baru di kategori yang sama\n"
+                "• Memindahkan member ke channel baru tersebut\n"
+                "• Menghapus channel saat semua member keluar"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Gunakan /vc name, /vc limit, /vc lock untuk kelola VC kamu")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @setupvoice_group.command(name="remove", description="Hapus konfigurasi Auto Voice Channel")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setupvoice_remove(self, interaction: discord.Interaction):
+        await db.set_guild_config(interaction.guild.id, autovoice_channel_id=None)
+        embed = discord.Embed(
+            title="🗑️ Auto Voice Dinonaktifkan",
+            description="Konfigurasi Auto Voice telah dihapus. Hub channel tidak akan otomatis membuat VC lagi.",
+            color=0xef4444
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @setupvoice_group.command(name="info", description="Lihat konfigurasi Auto Voice saat ini")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setupvoice_info(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        cfg   = await db.get_guild_config(guild.id)
+        hub_id = cfg.get("autovoice_channel_id")
+
+        embed = discord.Embed(title="🔊 Info Auto Voice", color=0x9333ea)
+
+        if hub_id:
+            hub_ch = guild.get_channel(hub_id)
+            embed.add_field(
+                name="Hub Channel",
+                value=hub_ch.mention if hub_ch else f"ID: `{hub_id}` (tidak ditemukan)",
+                inline=False
+            )
+            embed.color = 0x22c55e
+            embed.description = "✅ Auto Voice **aktif**"
+        else:
+            embed.description = "❌ Auto Voice **belum dikonfigurasi**\nGunakan `/setupvoice create` untuk memulai."
+
+        # Hitung active VCs
+        active_ids = await db.get_all_auto_voice_ids(guild.id)
+        # Filter hanya yang masih exist di guild
+        active_count = sum(1 for cid in active_ids if guild.get_channel(cid))
+        embed.add_field(name="📊 VC Aktif Sekarang", value=str(active_count), inline=True)
+        embed.set_footer(text="Panel: /setupvoice create | Hapus: /setupvoice remove")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     vc_ctrl = app_commands.Group(name="vc", description="Kelola voice channel otomatis kamu")
 
     async def _get_owned_vc(self, interaction):
@@ -163,4 +260,6 @@ class AutoVoice(commands.Cog):
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(AutoVoice(bot))
+    cog = AutoVoice(bot)
+    await bot.add_cog(cog)
+    bot.tree.add_command(cog.setupvoice_group)

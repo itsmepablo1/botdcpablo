@@ -246,27 +246,70 @@
           <div class="card-header"><h2 class="card-title">🔊 Auto Voice Channel</h2></div>
           <div class="form-row">
             <div class="form-group"><label>Guild ID</label><input type="text" id="av-guild" placeholder="Guild ID"/></div>
-            <div style="display:flex;align-items:flex-end">
+            <div style="display:flex;align-items:flex-end;gap:8px">
               <button class="btn-primary" onclick="loadAutoVoice()">📥 Load</button>
+              <button class="btn-sm" onclick="loadActiveVCs()">🔄 Refresh VCs</button>
             </div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2 class="card-title">⚙️ Konfigurasi</h2></div>
-          <div class="form-group">
-            <label>Trigger Channel ID (Voice Channel)</label>
-            <input type="text" id="av-chid" placeholder="Voice Channel ID"/>
-            <div class="hint">Member yang join channel ini akan otomatis dibuatkan VC baru.</div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><h2 class="card-title">⚙️ Konfigurasi Hub</h2></div>
+            <div class="form-group">
+              <label>Trigger Channel ID (Voice Channel)</label>
+              <input type="text" id="av-chid" placeholder="Voice Channel ID"/>
+              <div class="hint">Member yang join channel ini akan otomatis dibuatkan VC baru.</div>
+            </div>
+            <div style="display:flex;gap:12px">
+              <button class="btn-primary" onclick="saveAutoVoice()">💾 Simpan</button>
+              <button class="btn-danger" onclick="disableAutoVoice()">🗑 Disable</button>
+            </div>
+            <div class="alert" id="av-alert" style="display:none"></div>
           </div>
-          <div style="display:flex;gap:12px">
-            <button class="btn-primary" onclick="saveAutoVoice()">💾 Simpan</button>
-            <button class="btn-danger" onclick="disableAutoVoice()">🗑 Disable</button>
+
+          <div class="card">
+            <div class="card-header"><h2 class="card-title">📖 Cara Setup Cepat</h2></div>
+            <div class="info-list">
+              <div class="info-item"><span class="info-num">1</span> Di Discord, jalankan <code>/setupvoice create</code></div>
+              <div class="info-item"><span class="info-num">2</span> Bot otomatis buat kategori <strong>🔊 Voice Hub</strong> + hub channel</div>
+              <div class="info-item"><span class="info-num">3</span> Member join hub → VC baru dibuat otomatis untuknya</div>
+              <div class="info-item"><span class="info-num">4</span> VC kosong → dihapus otomatis oleh bot</div>
+              <div class="info-item"><span class="info-num">5</span> Atau set Channel ID manual di form kiri lalu klik Simpan</div>
+            </div>
           </div>
-          <div class="alert" id="av-alert" style="display:none"></div>
         </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">📡 Active Voice Channels</h2>
+            <span id="av-vc-count" style="font-size:13px;color:var(--text3)">—</span>
+          </div>
+          <div class="table-wrap">
+            <table class="table" id="av-vcs-table">
+              <thead>
+                <tr>
+                  <th>Channel ID</th>
+                  <th>Nama Channel</th>
+                  <th>Owner ID</th>
+                  <th>Limit</th>
+                  <th>Status</th>
+                  <th>Dibuat</th>
+                </tr>
+              </thead>
+              <tbody id="av-vcs-body">
+                <tr><td colspan="6" class="text-center text-muted">Load Guild ID lalu klik 🔄 Refresh VCs</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-header"><h2 class="card-title">📋 Perintah VC (via Discord)</h2></div>
           <div class="commands-grid">
+            <div class="cmd-card"><code>/setupvoice create</code><br><small>Setup otomatis + buat hub channel baru</small></div>
+            <div class="cmd-card"><code>/setupvoice remove</code><br><small>Nonaktifkan auto voice</small></div>
+            <div class="cmd-card"><code>/setupvoice info</code><br><small>Lihat status konfigurasi</small></div>
             <div class="cmd-card"><code>/vc name [nama]</code><br><small>Ganti nama VC</small></div>
             <div class="cmd-card"><code>/vc limit [0-99]</code><br><small>Set batas member</small></div>
             <div class="cmd-card"><code>/vc lock</code><br><small>Kunci VC</small></div>
@@ -276,6 +319,7 @@
           </div>
         </div>
       </div>
+
 
       <!-- ── STATUS ── -->
       <div class="page" id="page-status">
