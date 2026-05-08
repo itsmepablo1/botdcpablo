@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupMobileMenu();
   setupLogout();
   loadDashboard();
+  checkBotStatus();
 });
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -388,6 +389,77 @@ async function disableStreaming() {
   document.getElementById('st-chid').value = '';
   document.getElementById('st-rid').value  = '';
   showAlert('st-alert', '✅ Streaming notif dinonaktifkan.', 'success');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYSTEM CONTROL
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function checkBotStatus() {
+  try {
+    const res  = await apiFetch('/api/system/status');
+    const data = await res.json();
+    const dot  = document.getElementById('sys-status-dot');
+    const txt  = document.getElementById('sys-status-text');
+    if (!dot || !txt) return;
+    if (data.running) {
+      dot.style.background = '#22c55e';
+      txt.textContent = `✅ Bot berjalan (PID: ${data.pids.join(', ')})`;
+    } else {
+      dot.style.background = '#ef4444';
+      txt.textContent = '❌ Bot tidak berjalan';
+    }
+  } catch (e) {
+    const txt = document.getElementById('sys-status-text');
+    if (txt) txt.textContent = '⚠️ Tidak bisa cek status';
+  }
+}
+
+async function restartBot() {
+  const btn = document.getElementById('restartBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Merestart...';
+  showAlert('sys-alert', '⏳ Memproses restart bot...', 'success');
+  try {
+    const res  = await apiFetch('/api/system/restart', { method: 'POST' });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showAlert('sys-alert', `✅ ${data.message} (via ${data.method})`, 'success');
+      setTimeout(checkBotStatus, 4000);
+    } else {
+      showAlert('sys-alert', `❌ Gagal restart: ${data.message}`, 'error');
+    }
+  } catch (e) {
+    showAlert('sys-alert', `❌ Error: ${e.message}`, 'error');
+  }
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = '🔄 Restart Bot';
+  }, 5000);
+}
+
+async function loadBotLogs() {
+  const box = document.getElementById('sys-log-box');
+  box.style.display = 'block';
+  box.innerHTML = '<span style="color:#6b7280">Memuat log...</span>';
+  try {
+    const res  = await apiFetch('/api/system/logs?lines=80');
+    const data = await res.json();
+    if (!data.lines || !data.lines.length) {
+      box.innerHTML = '<span style="color:#6b7280">Log kosong atau file belum ada.</span>';
+      return;
+    }
+    box.innerHTML = data.lines.map(l => {
+      let color = '#a3a3a3';
+      if (l.includes('ERROR') || l.includes('❌') || l.includes('Failed')) color = '#ef4444';
+      else if (l.includes('✅') || l.includes('Synced') || l.includes('ready')) color = '#22c55e';
+      else if (l.includes('⚠') || l.includes('WARNING')) color = '#f59e0b';
+      return `<div style="color:${color}">${escHtml(l)}</div>`;
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {
+    box.innerHTML = `<span style="color:#ef4444">Error: ${e.message}</span>`;
+  }
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────

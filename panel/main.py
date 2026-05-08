@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from panel.routers import auth, dashboard, welcome, roles, autovoice, statuscfg, streaming
+from panel.routers import auth, dashboard, welcome, roles, autovoice, statuscfg, streaming, system
 
 app = FastAPI(title="Discord Bot Panel", version="1.0.0", docs_url=None, redoc_url=None)
 
@@ -26,6 +26,7 @@ app.include_router(roles.router,      prefix="/api/roles",     tags=["roles"])
 app.include_router(autovoice.router,  prefix="/api/autovoice", tags=["autovoice"])
 app.include_router(statuscfg.router,  prefix="/api/status",    tags=["status"])
 app.include_router(streaming.router,  prefix="/api/streaming", tags=["streaming"])
+app.include_router(system.router,     prefix="/api/system",    tags=["system"])
 
 # ── Static Files ──────────────────────────────────────────────────────────────
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
