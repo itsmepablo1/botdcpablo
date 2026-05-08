@@ -260,6 +260,5 @@ class AutoVoice(commands.Cog):
 
 
 async def setup(bot: commands.Bot):
-    cog = AutoVoice(bot)
-    await bot.add_cog(cog)
-    bot.tree.add_command(cog.setupvoice_group)
+    await bot.add_cog(AutoVoice(bot))
+
