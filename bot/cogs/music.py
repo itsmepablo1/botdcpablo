@@ -10,8 +10,32 @@ from bot.config import FFMPEG_PATH
 
 # ─── yt-dlp options ──────────────────────────────────────────────────────────
 
-# Untuk resolve stream URL satu lagu (fresh setiap kali play)
-YTDL_STREAM_OPTIONS = {
+# Untuk single video / pencarian (ambil stream URL sekaligus)
+YTDL_SINGLE = {
+    "format":             "bestaudio/best",
+    "noplaylist":         True,
+    "nocheckcertificate": True,
+    "ignoreerrors":       True,
+    "quiet":              True,
+    "no_warnings":        True,
+    "default_search":     "ytsearch",
+    "source_address":     "0.0.0.0",
+}
+
+# Untuk playlist (cepat, ambil metadata saja)
+YTDL_PLAYLIST = {
+    "format":             "bestaudio/best",
+    "noplaylist":         False,
+    "nocheckcertificate": True,
+    "ignoreerrors":       True,
+    "quiet":              True,
+    "no_warnings":        True,
+    "source_address":     "0.0.0.0",
+    "extract_flat":       "in_playlist",
+}
+
+# Untuk resolve stream URL per lagu saat play (playlist entries)
+YTDL_RESOLVE = {
     "format":             "bestaudio/best",
     "noplaylist":         True,
     "nocheckcertificate": True,
@@ -21,57 +45,77 @@ YTDL_STREAM_OPTIONS = {
     "source_address":     "0.0.0.0",
 }
 
-# Untuk pencarian / single video URL — TANPA extract_flat agar tidak return None
-YTDL_SINGLE_OPTIONS = {
-    "format":             "bestaudio/best",
-    "noplaylist":         True,   # jangan proses playlist jika URL video punya list=
-    "nocheckcertificate": True,
-    "ignoreerrors":       True,
-    "quiet":              True,
-    "no_warnings":        True,
-    "default_search":     "ytsearch",
-    "source_address":     "0.0.0.0",
-    # TIDAK pakai extract_flat agar single video selalu berhasil di-extract
-}
-
-# Untuk playlist URL — cepat, hanya ambil metadata
-YTDL_PLAYLIST_OPTIONS = {
-    "format":             "bestaudio/best",
-    "noplaylist":         False,
-    "nocheckcertificate": True,
-    "ignoreerrors":       True,
-    "quiet":              True,
-    "no_warnings":        True,
-    "source_address":     "0.0.0.0",
-    "extract_flat":       "in_playlist",  # cepat untuk playlist panjang
-}
-
 FFMPEG_OPTIONS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
     "options":        "-vn",
     "executable":     FFMPEG_PATH,
 }
 
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _is_stream_url(url: str) -> bool:
+    """Cek apakah URL adalah stream audio (bukan halaman YouTube)."""
+    if not url:
+        return False
+    NOT_STREAM = ("youtube.com/watch", "youtu.be/", "youtube.com/shorts", "youtube.com/playlist")
+    return not any(s in url for s in NOT_STREAM)
+
+def _extract_stream_from_data(data: dict) -> str | None:
+    """Ambil URL stream audio dari hasil extract_info yt-dlp."""
+    # Coba dari key 'url' langsung
+    url = data.get("url", "")
+    if _is_stream_url(url):
+        return url
+
+    # Cari di formats[] — pilih audio-only, bitrate tertinggi
+    formats = data.get("formats", [])
+    audio_only = [
+        f for f in formats
+        if f.get("url")
+        and f.get("acodec", "none") != "none"
+        and f.get("vcodec", "none") == "none"
+        and _is_stream_url(f.get("url", ""))
+    ]
+    if audio_only:
+        audio_only.sort(key=lambda f: f.get("abr") or f.get("tbr") or 0, reverse=True)
+        return audio_only[0]["url"]
+
+    # Fallback: format apapun yang punya stream URL
+    all_fmts = [f for f in formats if f.get("url") and _is_stream_url(f.get("url", ""))]
+    if all_fmts:
+        all_fmts.sort(key=lambda f: f.get("abr") or f.get("tbr") or 0, reverse=True)
+        return all_fmts[0]["url"]
+
+    return None
+
+
 # ─── Song ─────────────────────────────────────────────────────────────────────
 
 class Song:
-    """Menyimpan metadata lagu. URL stream di-resolve fresh saat giliran play."""
+    def __init__(self, data: dict, stream_url: str = None):
+        self.webpage    = data.get("webpage_url") or data.get("url", "")
+        self.title      = data.get("title", "Unknown")
+        self.thumbnail  = data.get("thumbnail")
+        self.duration   = data.get("duration", 0)
+        self.uploader   = data.get("uploader", "Unknown")
+        self.requester  = None
 
-    def __init__(self, data: dict):
-        # webpage_url = URL halaman YouTube (https://www.youtube.com/watch?v=...)
-        # ini yang akan kita berikan ke yt-dlp untuk resolve stream
-        self.webpage   = data.get("webpage_url") or data.get("url", "")
-        self.title     = data.get("title", "Unknown")
-        self.thumbnail = data.get("thumbnail")
-        self.duration  = data.get("duration", 0)
-        self.uploader  = data.get("uploader", "Unknown")
-        self.requester = None  # diisi oleh caller
+        # Stream URL sudah tersedia (untuk single video) atau None (playlist, resolve saat play)
+        self._stream_url = stream_url or _extract_stream_from_data(data)
+
+        # Kalau stream URL ada di 'url' tapi itu adalah halaman YouTube,
+        # simpan sebagai webpage dan clear stream
+        if self._stream_url and not _is_stream_url(self._stream_url):
+            self._stream_url = None
+        if self.webpage and _is_stream_url(self.webpage):
+            # webpage adalah stream URL, bukan halaman — swap
+            self._stream_url = self._stream_url or self.webpage
+            self.webpage = data.get("webpage_url", "")
 
     # ── Factory ───────────────────────────────────────────────────────────────
 
     @staticmethod
     def _is_playlist_url(query: str) -> bool:
-        """Deteksi apakah query adalah URL playlist YouTube."""
         return (
             "playlist?list=" in query
             or ("youtube.com" in query and "list=" in query and "watch" not in query)
@@ -79,93 +123,101 @@ class Song:
 
     @staticmethod
     async def from_query(query: str) -> list["Song"]:
-        """
-        Cari lagu/playlist dan kembalikan list Song.
-        - Playlist URL  → extract_flat (cepat, stream di-resolve saat play)
-        - Single / search → extract penuh (tidak pakai extract_flat)
-        """
         loop = asyncio.get_event_loop()
 
         if Song._is_playlist_url(query):
-            # Playlist: ambil metadata saja dulu
-            ydl  = yt_dlp.YoutubeDL(YTDL_PLAYLIST_OPTIONS)
-            data = await loop.run_in_executor(
-                None, lambda: ydl.extract_info(query, download=False)
-            )
+            # ── Playlist: ambil metadata saja (cepat) ────────────────────────
+            print(f"[Music] Mode: PLAYLIST | {query[:80]}")
+            ydl  = yt_dlp.YoutubeDL(YTDL_PLAYLIST)
+            data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+            if not data:
+                print("[Music] from_query: playlist extraction return None")
+                return []
+            if "entries" in data:
+                songs = []
+                for entry in data["entries"]:
+                    if not entry:
+                        continue
+                    songs.append(Song(entry))  # stream URL akan di-resolve saat play
+                print(f"[Music] Playlist: {len(songs)} lagu masuk antrian")
+                return songs[:100]
+            return [Song(data)]
+
         else:
-            # Single video URL atau kata kunci pencarian
-            ydl  = yt_dlp.YoutubeDL(YTDL_SINGLE_OPTIONS)
-            data = await loop.run_in_executor(
-                None, lambda: ydl.extract_info(query, download=False)
-            )
+            # ── Single video / search: ambil stream URL sekaligus ─────────────
+            print(f"[Music] Mode: SINGLE/SEARCH | {query[:80]}")
+            ydl  = yt_dlp.YoutubeDL(YTDL_SINGLE)
+            data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+            if not data:
+                print("[Music] from_query: single extraction return None")
+                return []
 
-        if not data:
-            print(f"[Music] from_query: yt-dlp return None untuk query: {query}")
-            return []
+            # Kalau ada entries (hasil ytsearch), ambil entri pertama yang punya data lengkap
+            if "entries" in data:
+                for entry in data["entries"]:
+                    if not entry:
+                        continue
+                    # Entry dari ytsearch mungkin hanya metadata, extract full info
+                    stream = _extract_stream_from_data(entry)
+                    if stream:
+                        s = Song(entry, stream_url=stream)
+                        print(f"[Music] ✓ Found: {s.title} | stream cached")
+                        return [s]
+                    # Tidak ada stream di entry, coba resolve full
+                    entry_url = entry.get("webpage_url") or entry.get("url", "")
+                    if entry_url:
+                        full = await loop.run_in_executor(
+                            None, lambda u=entry_url: yt_dlp.YoutubeDL(YTDL_RESOLVE).extract_info(u, download=False)
+                        )
+                        if full:
+                            stream = _extract_stream_from_data(full)
+                            s = Song(full, stream_url=stream)
+                            print(f"[Music] ✓ Found (resolved): {s.title}")
+                            return [s]
+                return []
 
-        if "entries" in data:
-            songs = []
-            for entry in data["entries"]:
-                if not entry:
-                    continue
-                songs.append(Song(entry))
-            return songs[:100]  # maksimal 100 lagu
+            # Data langsung (bukan list entries)
+            stream = _extract_stream_from_data(data)
+            song   = Song(data, stream_url=stream)
+            print(f"[Music] ✓ Found: {song.title} | stream {'cached' if stream else 'will resolve'}")
+            return [song]
 
-        return [Song(data)]
-
-    # ── Stream resolve ────────────────────────────────────────────────────────
+    # ── Stream resolve (lazy, untuk playlist) ─────────────────────────────────
 
     async def get_stream_url(self) -> str:
-        """
-        Minta yt-dlp untuk resolve URL stream audio yang benar.
-        Selalu fresh → tidak pernah expired.
-        Raise Exception jika gagal.
-        """
-        if not self.webpage:
-            raise Exception(f"Song '{self.title}' tidak punya webpage URL")
+        # Jika sudah ada stream URL (dari single video), langsung pakai
+        if self._stream_url and _is_stream_url(self._stream_url):
+            print(f"[Music] ✓ Using cached stream: {self.title}")
+            return self._stream_url
 
+        # Playlist entry: resolve sekarang
+        resolve_url = self.webpage
+        if not resolve_url:
+            raise Exception(f"Tidak ada URL untuk: {self.title}")
+
+        print(f"[Music] Resolving stream (playlist entry): {resolve_url[:80]}")
         loop = asyncio.get_event_loop()
-        ydl  = yt_dlp.YoutubeDL(YTDL_STREAM_OPTIONS)
-
-        print(f"[Music] Resolving stream: {self.webpage}")
         data = await loop.run_in_executor(
-            None, lambda: ydl.extract_info(self.webpage, download=False)
+            None,
+            lambda: yt_dlp.YoutubeDL(YTDL_RESOLVE).extract_info(resolve_url, download=False)
         )
-
         if not data:
-            raise Exception(f"yt-dlp gagal extract: {self.webpage}")
+            raise Exception(f"yt-dlp return None untuk: {resolve_url}")
 
-        # Ambil URL langsung
-        stream_url = data.get("url")
+        stream = _extract_stream_from_data(data)
+        if not stream:
+            raise Exception(f"Tidak dapat menemukan stream URL untuk: {self.title} ({resolve_url})")
 
-        # Fallback: cari di formats[]
-        if not stream_url:
-            formats = data.get("formats", [])
-            # Pilih audio-only format dengan bitrate tertinggi
-            audio_fmts = [
-                f for f in formats
-                if f.get("url") and f.get("acodec", "none") != "none"
-                and f.get("vcodec", "none") == "none"
-            ]
-            if not audio_fmts:
-                # Fallback ke format apapun yang ada URL
-                audio_fmts = [f for f in formats if f.get("url")]
-            if audio_fmts:
-                audio_fmts.sort(key=lambda f: f.get("abr") or 0, reverse=True)
-                stream_url = audio_fmts[0]["url"]
-
-        if not stream_url:
-            raise Exception(f"Tidak dapat menemukan stream URL untuk: {self.title}")
-
-        # Update metadata dari hasil resolve
+        # Update metadata
         self.title     = data.get("title")     or self.title
         self.thumbnail = data.get("thumbnail") or self.thumbnail
         self.duration  = data.get("duration")  or self.duration
         self.uploader  = data.get("uploader")  or self.uploader
         self.webpage   = data.get("webpage_url") or self.webpage
+        self._stream_url = stream
 
-        print(f"[Music] ✓ Stream OK: {self.title} | {stream_url[:60]}...")
-        return stream_url
+        print(f"[Music] ✓ Resolved: {self.title}")
+        return stream
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -181,13 +233,13 @@ class Song:
     def embed(self, title="🎵 Sekarang Diputar") -> discord.Embed:
         e = discord.Embed(
             title=title,
-            description=f"[{self.title}]({self.webpage})",
+            description=f"[{self.title}]({self.webpage})" if self.webpage else self.title,
             color=0x9333ea
         )
         if self.thumbnail:
             e.set_thumbnail(url=self.thumbnail)
-        e.add_field(name="⏱ Durasi",    value=self.duration_str(), inline=True)
-        e.add_field(name="🎤 Artis",    value=self.uploader,       inline=True)
+        e.add_field(name="⏱ Durasi",   value=self.duration_str(), inline=True)
+        e.add_field(name="🎤 Artis",   value=self.uploader,       inline=True)
         if self.requester:
             e.add_field(name="👤 Request oleh", value=self.requester.mention, inline=True)
         return e
@@ -197,14 +249,15 @@ class Song:
 
 class GuildMusicState:
     def __init__(self, bot: commands.Bot, guild: discord.Guild):
-        self.bot     = bot
-        self.guild   = guild
-        self.queue:  list[Song]             = []
-        self.current: Song | None           = None
-        self.voice:  discord.VoiceClient | None = None
-        self.volume  = 0.5
-        self._next   = asyncio.Event()
-        self._task   = bot.loop.create_task(self._player_loop())
+        self.bot          = bot
+        self.guild        = guild
+        self.queue:       list[Song]                 = []
+        self.current:     Song | None                = None
+        self.voice:       discord.VoiceClient | None = None
+        self.volume       = 0.5
+        self.text_channel: discord.TextChannel | None = None  # untuk kirim notif error
+        self._next        = asyncio.Event()
+        self._task        = bot.loop.create_task(self._player_loop())
 
     async def _player_loop(self):
         await self.bot.wait_until_ready()
@@ -216,40 +269,67 @@ class GuildMusicState:
                 continue
 
             self.current = self.queue.pop(0)
+            print(f"[Music] Mulai proses: {self.current.title}")
 
-            # ── 1. Resolve stream URL (fresh dari yt-dlp) ──────────────────
+            # ── 1. Resolve stream URL ─────────────────────────────────────────
             try:
                 stream_url = await self.current.get_stream_url()
             except Exception as e:
-                print(f"[Music] ✗ Gagal resolve stream: {e}")
+                print(f"[Music] ✗ Gagal resolve stream '{self.current.title}': {e}")
+                await self._notify(f"⚠️ Gagal load `{self.current.title}`: {e}")
                 self._next.set()
                 continue
 
-            # ── 2. Tunggu voice terkoneksi ──────────────────────────────────
-            for _ in range(20):  # tunggu maksimal 10 detik
+            # ── 2. Tunggu voice terkoneksi ────────────────────────────────────
+            for _ in range(20):
                 if self.voice and self.voice.is_connected():
                     break
                 await asyncio.sleep(0.5)
 
             if not (self.voice and self.voice.is_connected()):
-                print("[Music] ✗ Voice tidak terkoneksi, lagu dilewati.")
+                print("[Music] ✗ Voice tidak terkoneksi.")
                 self._next.set()
                 continue
 
-            # ── 3. Buat source dan play ─────────────────────────────────────
+            # ── 3. Play ──────────────────────────────────────────────────────
             try:
+                print(f"[Music] Playing: {self.current.title} | URL: {stream_url[:60]}...")
                 source = discord.PCMVolumeTransformer(
                     discord.FFmpegPCMAudio(stream_url, **FFMPEG_OPTIONS),
                     volume=self.volume
                 )
                 self.voice.play(
                     source,
-                    after=lambda _: self.bot.loop.call_soon_threadsafe(self._next.set)
+                    after=lambda e: self._on_play_end(e)
                 )
+
+                # Kirim embed "Sekarang Diputar"
+                await self._notify(embed=self.current.embed())
                 await self._next.wait()
+
             except Exception as e:
-                print(f"[Music] ✗ Error saat play: {e}")
+                print(f"[Music] ✗ Error saat play '{self.current.title}': {e}")
+                await self._notify(f"⚠️ Error play `{self.current.title}`: {e}")
                 self._next.set()
+
+        print("[Music] Player loop selesai.")
+
+    def _on_play_end(self, error):
+        if error:
+            print(f"[Music] FFmpeg error: {error}")
+        self.bot.loop.call_soon_threadsafe(self._next.set)
+
+    async def _notify(self, content: str = None, embed: discord.Embed = None):
+        """Kirim notifikasi ke text channel jika tersedia."""
+        if not self.text_channel:
+            return
+        try:
+            if embed:
+                await self.text_channel.send(embed=embed)
+            elif content:
+                await self.text_channel.send(content)
+        except Exception:
+            pass
 
     def skip(self):
         if self.voice and self.voice.is_playing():
@@ -257,6 +337,7 @@ class GuildMusicState:
 
     def stop(self):
         self.queue.clear()
+        self.current = None
         if self.voice and self.voice.is_playing():
             self.voice.stop()
 
@@ -281,14 +362,9 @@ class Music(commands.Cog):
         for state in self.states.values():
             state.cleanup()
 
-    # ── Helper ────────────────────────────────────────────────────────────────
-
     async def _ensure_voice(self, interaction: discord.Interaction) -> GuildMusicState | None:
-        """Join voice channel user. Return state atau None jika gagal."""
         if not interaction.user.voice or not interaction.user.voice.channel:
-            await interaction.followup.send(
-                "❌ Kamu harus masuk voice channel dulu!", ephemeral=True
-            )
+            await interaction.followup.send("❌ Kamu harus masuk voice channel dulu!", ephemeral=True)
             return None
         state = self.get_state(interaction.guild)
         vc    = interaction.user.voice.channel
@@ -297,6 +373,8 @@ class Music(commands.Cog):
                 await state.voice.move_to(vc)
         else:
             state.voice = await vc.connect()
+        # Simpan text channel untuk notifikasi
+        state.text_channel = interaction.channel
         return state
 
     # ── Slash Commands ────────────────────────────────────────────────────────
@@ -318,7 +396,7 @@ class Music(commands.Cog):
         for s in songs:
             s.requester = interaction.user
         state.queue.extend(songs)
-        state._next.set()  # trigger player loop
+        state._next.set()
 
         if len(songs) == 1:
             await interaction.followup.send(embed=songs[0].embed("✅ Ditambahkan ke Queue"))
@@ -415,9 +493,7 @@ class Music(commands.Cog):
     async def deleteallqueue(self, interaction: discord.Interaction):
         state = self.get_state(interaction.guild)
         if not state.queue:
-            await interaction.response.send_message(
-                "📋 Antrian sudah kosong.", ephemeral=True
-            )
+            await interaction.response.send_message("📋 Antrian sudah kosong.", ephemeral=True)
             return
         jumlah = len(state.queue)
         state.queue.clear()
@@ -425,8 +501,7 @@ class Music(commands.Cog):
             title="🗑️ Antrian Dihapus",
             description=(
                 f"**{jumlah} lagu** berhasil dihapus dari antrian.\n"
-                + (f"▶ Lagu **{state.current.title}** tetap diputar."
-                   if state.current else "")
+                + (f"▶ Lagu **{state.current.title}** tetap diputar." if state.current else "")
             ),
             color=0xef4444,
         )
