@@ -12,7 +12,7 @@ from bot.config import FFMPEG_PATH
 
 # Untuk single video / pencarian (ambil stream URL sekaligus)
 YTDL_SINGLE = {
-    "format":             "bestaudio/best",
+    "format":             "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best/b",
     "noplaylist":         True,
     "nocheckcertificate": True,
     "ignoreerrors":       True,
@@ -24,7 +24,7 @@ YTDL_SINGLE = {
 
 # Untuk playlist (cepat, ambil metadata saja)
 YTDL_PLAYLIST = {
-    "format":             "bestaudio/best",
+    "format":             "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best/b",
     "noplaylist":         False,
     "nocheckcertificate": True,
     "ignoreerrors":       True,
@@ -36,10 +36,10 @@ YTDL_PLAYLIST = {
 
 # Untuk resolve stream URL per lagu saat play (playlist entries)
 YTDL_RESOLVE = {
-    "format":             "bestaudio/best",
+    "format":             "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best/b",
     "noplaylist":         True,
     "nocheckcertificate": True,
-    "ignoreerrors":       False,
+    "ignoreerrors":       True,   # jangan crash jika format tertentu tidak ada
     "quiet":              True,
     "no_warnings":        True,
     "source_address":     "0.0.0.0",
