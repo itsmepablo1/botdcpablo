@@ -18,6 +18,7 @@ COGS = [
     "bot.cogs.autovoice",
     "bot.cogs.status",
     "bot.cogs.streaming",
+    "bot.cogs.help",
 ]
 
 intents = discord.Intents.default()
