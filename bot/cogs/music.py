@@ -12,6 +12,7 @@ from bot.config import FFMPEG_PATH
 
 # Untuk from_query: HANYA ambil metadata (title, webpage_url, thumbnail, duration)
 # TIDAK ada format selector → tidak pernah gagal karena "format not available"
+# Paksa android player client agar tidak butuh JavaScript runtime
 YTDL_META = {
     "noplaylist":         True,
     "nocheckcertificate": True,
@@ -20,6 +21,7 @@ YTDL_META = {
     "no_warnings":        True,
     "default_search":     "ytsearch",
     "source_address":     "0.0.0.0",
+    "extractor_args":     {"youtube": {"player_client": ["android", "web"]}},
 }
 
 # Untuk playlist: flat metadata saja (cepat)
@@ -31,6 +33,7 @@ YTDL_PLAYLIST = {
     "no_warnings":        True,
     "source_address":     "0.0.0.0",
     "extract_flat":       "in_playlist",
+    "extractor_args":     {"youtube": {"player_client": ["android", "web"]}},
 }
 
 # Format chains untuk dicoba saat resolve stream (urutan dari paling preferred)
@@ -49,6 +52,8 @@ YTDL_STREAM_BASE = {
     "quiet":              True,
     "no_warnings":        True,
     "source_address":     "0.0.0.0",
+    # Paksa Android player client → tidak butuh JS runtime
+    "extractor_args":     {"youtube": {"player_client": ["android", "android_music", "web"]}},
 }
 
 FFMPEG_OPTIONS = {
