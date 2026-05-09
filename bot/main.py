@@ -1,5 +1,6 @@
 import asyncio
 import discord
+import wavelink
 from discord.ext import commands
 import sys, os
 
@@ -39,6 +40,12 @@ class BotDC(commands.Bot):
 
     async def setup_hook(self):
         await db.init_db()
+
+        # Connect ke Lavalink server
+        node = wavelink.Node(uri="http://127.0.0.1:2333", password="botdc_lavalink_2025")
+        await wavelink.Pool.connect(nodes=[node], client=self, cache_capacity=100)
+        log("  🎵 Lavalink connected!", "  [OK] Lavalink connected!")
+
         for cog in COGS:
             try:
                 await self.load_extension(cog)
