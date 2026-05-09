@@ -1,93 +1,76 @@
-import asyncio
-import discord
+import asyncio, discord, subprocess, json, sys, os
 from discord import app_commands
 from discord.ext import commands
-import yt_dlp
-import sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from bot.config import FFMPEG_PATH
 
-# ── Proven YDL Options (battle-tested pattern) ────────────────────────────────
-YDL_OPTS = {
-    "format":         "bestaudio/best",
-    "noplaylist":     True,
-    "quiet":          True,
-    "no_warnings":    True,
-    "default_search": "ytsearch",
-    "source_address": "0.0.0.0",
-    "extractor_args": {"youtube": {"player_client": ["android", "android_music", "web"]}},
-}
+# Path yt-dlp dari venv yang sama dengan Python yang berjalan
+YTDLP = os.path.join(os.path.dirname(sys.executable), "yt-dlp")
+if not os.path.exists(YTDLP):
+    YTDLP = "yt-dlp"
 
-YDL_PLAYLIST_OPTS = {
-    "format":         "bestaudio/best",
-    "noplaylist":     False,
-    "quiet":          True,
-    "no_warnings":    True,
-    "source_address": "0.0.0.0",
-    "extract_flat":   "in_playlist",
-    "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
-}
+print(f"[Music] yt-dlp path: {YTDLP}", flush=True)
 
 FFMPEG_OPTS = {
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-    "options":        "-vn",
-    "executable":     FFMPEG_PATH,
+    "options": "-vn",
+    "executable": FFMPEG_PATH,
 }
 
-# ── Get stream URL (simple, direct) ──────────────────────────────────────────
 
-async def get_stream_url(query: str) -> dict | None:
-    """
-    Cari lagu dan return dict {title, url, webpage, thumbnail, duration, uploader}.
-    URL adalah direct stream URL, langsung bisa dipakai FFmpegPCMAudio.
-    """
+# ── Fetch info via CLI (lebih reliable dari Python API) ───────────────────────
+
+async def fetch_info(query: str) -> dict | None:
     loop = asyncio.get_event_loop()
-    try:
-        data = await loop.run_in_executor(
-            None,
-            lambda: yt_dlp.YoutubeDL(YDL_OPTS).extract_info(query, download=False)
-        )
-    except Exception as e:
-        print(f"[Music] yt-dlp error: {e}")
-        return None
 
+    def _run():
+        cmd = [
+            YTDLP,
+            "--no-playlist",
+            "-f", "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
+            "--default-search", "ytsearch",
+            "--dump-json",
+            "--no-warnings",
+            "--quiet",
+            query,
+        ]
+        print(f"[Music] CMD: {' '.join(cmd)}", flush=True)
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+            if r.returncode != 0 or not r.stdout.strip():
+                print(f"[Music] yt-dlp stderr: {r.stderr[:400]}", flush=True)
+                return None
+            return json.loads(r.stdout.strip())
+        except subprocess.TimeoutExpired:
+            print("[Music] yt-dlp timeout", flush=True)
+            return None
+        except Exception as e:
+            print(f"[Music] fetch_info error: {e}", flush=True)
+            return None
+
+    data = await loop.run_in_executor(None, _run)
     if not data:
         return None
 
-    # Kalau ada entries (playlist atau ytsearch result), ambil yang pertama
-    if "entries" in data:
-        for entry in data["entries"]:
-            if entry:
-                data = entry
+    # Ambil stream URL
+    url = data.get("url", "")
+    if not url or "youtube.com/watch" in url or "youtu.be" in url:
+        # Cari di formats[]
+        for fmt in reversed(data.get("formats", [])):
+            u = fmt.get("url", "")
+            if u and ("googlevideo" in u or u.startswith("http")):
+                url = u
                 break
-        else:
-            return None
 
-    # Ambil stream URL dari data
-    stream_url = data.get("url", "")
-
-    # Kalau url kosong atau masih YouTube halaman, cari di formats[]
-    if not stream_url or "youtube.com/watch" in stream_url:
-        formats = data.get("formats", [])
-        # Prioritas: audio-only (no video)
-        audio = [f for f in formats if f.get("url") and f.get("acodec", "none") != "none"
-                 and f.get("vcodec", "none") == "none" and "googlevideo" in f.get("url", "")]
-        if not audio:
-            # Fallback: apapun dengan googlevideo URL
-            audio = [f for f in formats if "googlevideo" in f.get("url", "")]
-        if audio:
-            audio.sort(key=lambda f: f.get("abr") or 0, reverse=True)
-            stream_url = audio[0]["url"]
-
-    if not stream_url or "youtube.com" in stream_url:
-        print(f"[Music] Tidak dapat stream URL untuk: {data.get('title')}")
+    if not url:
+        print(f"[Music] No stream URL: {data.get('title')}", flush=True)
         return None
 
-    print(f"[Music] ✓ Got stream: {data.get('title')} | {stream_url[:60]}...")
+    print(f"[Music] ✓ {data.get('title')} | {url[:70]}...", flush=True)
     return {
         "title":     data.get("title", "Unknown"),
-        "url":       stream_url,
+        "url":       url,
         "webpage":   data.get("webpage_url", ""),
         "thumbnail": data.get("thumbnail"),
         "duration":  data.get("duration", 0),
@@ -95,41 +78,44 @@ async def get_stream_url(query: str) -> dict | None:
     }
 
 
-async def get_playlist_entries(url: str) -> list[dict]:
-    """Ambil daftar entry dari playlist (metadata saja, URL di-resolve saat play)."""
+async def fetch_playlist(url: str) -> list[dict]:
     loop = asyncio.get_event_loop()
-    try:
-        data = await loop.run_in_executor(
-            None,
-            lambda: yt_dlp.YoutubeDL(YDL_PLAYLIST_OPTS).extract_info(url, download=False)
-        )
-    except Exception as e:
-        print(f"[Music] playlist error: {e}")
-        return []
-    if not data:
-        return []
-    entries = data.get("entries", [])
-    result = []
-    for e in entries:
-        if not e:
-            continue
-        result.append({
-            "title":     e.get("title", "Unknown"),
-            "url":       None,  # belum di-resolve
-            "webpage":   e.get("url") or e.get("webpage_url", ""),
-            "thumbnail": e.get("thumbnail"),
-            "duration":  e.get("duration", 0),
-            "uploader":  e.get("uploader", "Unknown"),
-        })
-    return result[:100]
+
+    def _run():
+        cmd = [
+            YTDLP, "--flat-playlist", "--dump-json",
+            "--no-warnings", "--quiet", url,
+        ]
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            results = []
+            for line in r.stdout.strip().splitlines():
+                try:
+                    e = json.loads(line)
+                    results.append({
+                        "title":    e.get("title", "Unknown"),
+                        "url":      None,
+                        "webpage":  e.get("url") or e.get("webpage_url", ""),
+                        "thumbnail": e.get("thumbnail"),
+                        "duration": e.get("duration", 0),
+                        "uploader": e.get("uploader", "Unknown"),
+                    })
+                except Exception:
+                    continue
+            return results
+        except Exception as e:
+            print(f"[Music] playlist error: {e}", flush=True)
+            return []
+
+    return await loop.run_in_executor(None, _run)
 
 
-# ── Queue Item ────────────────────────────────────────────────────────────────
+# ── Song item ─────────────────────────────────────────────────────────────────
 
-class QueueItem:
-    def __init__(self, info: dict, requester: discord.Member = None):
+class Song:
+    def __init__(self, info: dict, requester=None):
         self.title     = info["title"]
-        self.stream_url = info.get("url")        # None = belum di-resolve (playlist)
+        self.url       = info.get("url")       # stream URL (None = lazy)
         self.webpage   = info.get("webpage", "")
         self.thumbnail = info.get("thumbnail")
         self.duration  = info.get("duration", 0)
@@ -137,121 +123,114 @@ class QueueItem:
         self.requester = requester
 
     async def resolve(self) -> bool:
-        """Resolve stream URL jika belum ada (untuk playlist entries)."""
-        if self.stream_url:
+        if self.url:
             return True
         if not self.webpage:
             return False
-        result = await get_stream_url(self.webpage)
-        if result:
-            self.stream_url = result["url"]
-            self.title      = result["title"] or self.title
+        info = await fetch_info(self.webpage)
+        if info:
+            self.url      = info["url"]
+            self.title    = info["title"] or self.title
+            self.thumbnail = info["thumbnail"] or self.thumbnail
             return True
         return False
 
-    def duration_str(self) -> str:
+    def fmt_dur(self):
         if not self.duration:
             return "∞"
         m, s = divmod(int(self.duration), 60)
         h, m = divmod(m, 60)
         return f"{h}:{m:02}:{s:02}" if h else f"{m}:{s:02}"
 
-    def embed(self, title="🎵 Sekarang Diputar") -> discord.Embed:
+    def embed(self, title="🎵 Sekarang Diputar"):
         desc = f"[{self.title}]({self.webpage})" if self.webpage else self.title
         e = discord.Embed(title=title, description=desc, color=0x9333ea)
         if self.thumbnail:
             e.set_thumbnail(url=self.thumbnail)
-        e.add_field(name="⏱ Durasi",  value=self.duration_str(), inline=True)
-        e.add_field(name="🎤 Artis",  value=self.uploader,       inline=True)
+        e.add_field(name="⏱", value=self.fmt_dur(), inline=True)
+        e.add_field(name="🎤", value=self.uploader, inline=True)
         if self.requester:
-            e.add_field(name="👤 Request", value=self.requester.mention, inline=True)
+            e.add_field(name="👤", value=self.requester.mention, inline=True)
         return e
 
 
-# ── Guild Music State ─────────────────────────────────────────────────────────
+# ── Guild state ───────────────────────────────────────────────────────────────
 
-class GuildMusicState:
-    IDLE_TIMEOUT = 300  # disconnect setelah 5 menit idle
+class MusicState:
+    IDLE = 300  # detik sebelum auto-disconnect
 
-    def __init__(self, bot: commands.Bot, guild: discord.Guild):
-        self.bot          = bot
-        self.guild        = guild
-        self.queue:       list[QueueItem]            = []
-        self.current:     QueueItem | None           = None
-        self.voice:       discord.VoiceClient | None = None
-        self.volume       = 0.5
-        self.text_channel: discord.TextChannel | None = None
-        self._next        = asyncio.Event()
-        self._task        = bot.loop.create_task(self._player_loop())
+    def __init__(self, bot, guild):
+        self.bot     = bot
+        self.guild   = guild
+        self.queue:  list[Song]               = []
+        self.current: Song | None             = None
+        self.voice:  discord.VoiceClient | None = None
+        self.volume  = 0.5
+        self.channel: discord.TextChannel | None = None
+        self._next   = asyncio.Event()
+        self._task   = bot.loop.create_task(self._loop())
 
-    async def _player_loop(self):
+    async def _loop(self):
         await self.bot.wait_until_ready()
         while not self.bot.is_closed():
             self._next.clear()
             self.current = None
 
             if not self.queue:
-                # Tunggu lagu baru, max IDLE_TIMEOUT detik
                 try:
-                    await asyncio.wait_for(self._next.wait(), timeout=self.IDLE_TIMEOUT)
+                    await asyncio.wait_for(self._next.wait(), timeout=self.IDLE)
                 except asyncio.TimeoutError:
-                    # Idle terlalu lama → disconnect
                     if self.voice and self.voice.is_connected():
                         await self.voice.disconnect()
                         self.voice = None
-                        await self._notify("⏹ Bot keluar dari voice karena idle terlalu lama.")
+                        await self._send("⏹ Keluar dari voice (idle).")
                     continue
                 self._next.clear()
 
             if not self.queue:
                 continue
 
-            item = self.queue.pop(0)
-            self.current = item
+            song = self.queue.pop(0)
+            self.current = song
+            print(f"[Music] Playing: {song.title}", flush=True)
 
-            # Resolve stream URL jika belum ada
-            print(f"[Music] Processing: {item.title}")
-            ok = await item.resolve()
-            if not ok or not item.stream_url:
-                print(f"[Music] ✗ Gagal resolve: {item.title}")
-                await self._notify(f"⚠️ Tidak bisa load **{item.title}** — di-skip.")
+            ok = await song.resolve()
+            if not ok or not song.url:
+                await self._send(f"⚠️ Gagal load **{song.title}** — di-skip.")
                 self._next.set()
                 continue
 
-            # Pastikan voice terkoneksi
             if not (self.voice and self.voice.is_connected()):
-                print(f"[Music] ✗ Voice tidak terkoneksi.")
+                print("[Music] Voice disconnected before play", flush=True)
                 self._next.set()
                 continue
 
-            # Play
             try:
-                print(f"[Music] ▶ Playing: {item.title}")
                 src = discord.PCMVolumeTransformer(
-                    discord.FFmpegPCMAudio(item.stream_url, **FFMPEG_OPTS),
+                    discord.FFmpegPCMAudio(song.url, **FFMPEG_OPTS),
                     volume=self.volume
                 )
                 self.voice.play(src, after=lambda e: self._after(e))
-                await self._notify(embed=item.embed())
+                await self._send(embed=song.embed())
                 await self._next.wait()
             except Exception as e:
-                print(f"[Music] ✗ Play error: {e}")
-                await self._notify(f"⚠️ Error play **{item.title}**: `{e}`")
+                print(f"[Music] Play error: {e}", flush=True)
+                await self._send(f"⚠️ Error: `{e}`")
                 self._next.set()
 
-    def _after(self, error):
-        if error:
-            print(f"[Music] FFmpeg after error: {error}")
+    def _after(self, err):
+        if err:
+            print(f"[Music] FFmpeg error: {err}", flush=True)
         self.bot.loop.call_soon_threadsafe(self._next.set)
 
-    async def _notify(self, content: str = None, embed: discord.Embed = None):
-        if not self.text_channel:
+    async def _send(self, msg=None, embed=None):
+        if not self.channel:
             return
         try:
             if embed:
-                await self.text_channel.send(embed=embed)
-            elif content:
-                await self.text_channel.send(content)
+                await self.channel.send(embed=embed)
+            elif msg:
+                await self.channel.send(msg)
         except Exception:
             pass
 
@@ -266,181 +245,176 @@ class GuildMusicState:
             self.voice.stop()
 
     def cleanup(self):
-        if self._task:
-            self._task.cancel()
+        self._task.cancel()
 
 
-# ── Music Cog ─────────────────────────────────────────────────────────────────
+# ── Cog ───────────────────────────────────────────────────────────────────────
 
 class Music(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot):
         self.bot    = bot
-        self.states: dict[int, GuildMusicState] = {}
+        self.states: dict[int, MusicState] = {}
 
-    def get_state(self, guild: discord.Guild) -> GuildMusicState:
+    def _state(self, guild) -> MusicState:
         if guild.id not in self.states:
-            self.states[guild.id] = GuildMusicState(self.bot, guild)
+            self.states[guild.id] = MusicState(self.bot, guild)
         return self.states[guild.id]
 
     def cog_unload(self):
         for s in self.states.values():
             s.cleanup()
 
-    async def _join_voice(self, interaction: discord.Interaction) -> GuildMusicState | None:
-        if not interaction.user.voice or not interaction.user.voice.channel:
+    async def _join(self, interaction) -> MusicState | None:
+        if not interaction.user.voice:
             await interaction.followup.send("❌ Masuk voice channel dulu!", ephemeral=True)
             return None
-        state = self.get_state(interaction.guild)
+        state = self._state(interaction.guild)
         vc = interaction.user.voice.channel
         if state.voice and state.voice.is_connected():
             if state.voice.channel.id != vc.id:
                 await state.voice.move_to(vc)
         else:
             state.voice = await vc.connect()
-        state.text_channel = interaction.channel
+        state.channel = interaction.channel
         return state
 
-    @app_commands.command(name="play", description="Putar lagu dari YouTube (URL atau kata kunci)")
-    @app_commands.describe(query="URL YouTube atau kata kunci")
+    # ── Commands ──────────────────────────────────────────────────────────────
+
+    @app_commands.command(name="play", description="Putar lagu — masukkan URL YouTube/Spotify atau kata kunci")
+    @app_commands.describe(query="URL atau kata kunci lagu (YouTube, SoundCloud, dll)")
     async def play(self, interaction: discord.Interaction, query: str):
         await interaction.response.defer()
         await interaction.followup.send(f"🔍 Mencari: **{query}**...")
 
-        is_playlist = "playlist?list=" in query or ("list=" in query and "watch" not in query and "youtube.com" in query)
+        is_playlist = ("playlist?list=" in query or
+                       ("list=" in query and "watch" not in query and "youtube.com" in query))
 
         if is_playlist:
-            entries = await get_playlist_entries(query)
+            entries = await fetch_playlist(query)
             if not entries:
                 await interaction.followup.send("❌ Playlist tidak ditemukan!", ephemeral=True)
                 return
-            state = await self._join_voice(interaction)
+            state = await self._join(interaction)
             if not state:
                 return
             for e in entries:
-                state.queue.append(QueueItem(e, interaction.user))
+                state.queue.append(Song(e, interaction.user))
             state._next.set()
             await interaction.followup.send(
                 embed=discord.Embed(
                     title="✅ Playlist Ditambahkan",
-                    description=f"{len(entries)} lagu ditambahkan ke queue",
+                    description=f"{len(entries)} lagu masuk queue",
                     color=0x9333ea
                 )
             )
         else:
-            # Single video / search — resolve stream URL dulu
-            info = await get_stream_url(query)
+            info = await fetch_info(query)
             if not info:
-                await interaction.followup.send("❌ Lagu tidak ditemukan atau tidak bisa di-stream!", ephemeral=True)
+                await interaction.followup.send(
+                    "❌ Lagu tidak ditemukan!\n"
+                    f"Coba jalankan di VPS: `{YTDLP} --dump-json \"{query}\"`",
+                    ephemeral=True
+                )
                 return
-            state = await self._join_voice(interaction)
+            state = await self._join(interaction)
             if not state:
                 return
-            item = QueueItem(info, interaction.user)
-            state.queue.append(item)
+            song = Song(info, interaction.user)
+            state.queue.append(song)
             state._next.set()
-            await interaction.followup.send(embed=item.embed("✅ Ditambahkan ke Queue"))
+            await interaction.followup.send(embed=song.embed("✅ Ditambahkan ke Queue"))
 
     @app_commands.command(name="skip", description="Skip lagu sekarang")
     async def skip(self, interaction: discord.Interaction):
-        state = self.get_state(interaction.guild)
-        if not state.voice or not state.voice.is_playing():
-            await interaction.response.send_message("❌ Tidak ada lagu yang diputar.", ephemeral=True)
+        s = self._state(interaction.guild)
+        if not s.voice or not s.voice.is_playing():
+            await interaction.response.send_message("❌ Tidak ada lagu.", ephemeral=True)
             return
-        state.skip()
-        await interaction.response.send_message("⏭ Di-skip!")
+        s.skip()
+        await interaction.response.send_message("⏭ Skip!")
 
-    @app_commands.command(name="stop", description="Hentikan musik & keluar voice")
+    @app_commands.command(name="stop", description="Stop & keluar dari voice")
     async def stop(self, interaction: discord.Interaction):
-        state = self.get_state(interaction.guild)
-        state.stop()
-        if state.voice:
-            await state.voice.disconnect()
-            state.voice = None
-        await interaction.response.send_message("⏹ Musik dihentikan.")
+        s = self._state(interaction.guild)
+        s.stop()
+        if s.voice:
+            await s.voice.disconnect()
+            s.voice = None
+        await interaction.response.send_message("⏹ Stop.")
 
     @app_commands.command(name="pause", description="Pause musik")
     async def pause(self, interaction: discord.Interaction):
-        state = self.get_state(interaction.guild)
-        if state.voice and state.voice.is_playing():
-            state.voice.pause()
-            await interaction.response.send_message("⏸ Di-pause.")
+        s = self._state(interaction.guild)
+        if s.voice and s.voice.is_playing():
+            s.voice.pause()
+            await interaction.response.send_message("⏸ Pause.")
         else:
             await interaction.response.send_message("❌ Tidak ada yang diputar.", ephemeral=True)
 
     @app_commands.command(name="resume", description="Lanjutkan musik")
     async def resume(self, interaction: discord.Interaction):
-        state = self.get_state(interaction.guild)
-        if state.voice and state.voice.is_paused():
-            state.voice.resume()
-            await interaction.response.send_message("▶ Dilanjutkan.")
+        s = self._state(interaction.guild)
+        if s.voice and s.voice.is_paused():
+            s.voice.resume()
+            await interaction.response.send_message("▶ Resume.")
         else:
             await interaction.response.send_message("❌ Tidak dalam keadaan pause.", ephemeral=True)
 
-    @app_commands.command(name="volume", description="Atur volume (0-100)")
+    @app_commands.command(name="volume", description="Atur volume 0-100")
     @app_commands.describe(level="Volume 0-100")
     async def volume(self, interaction: discord.Interaction, level: int):
         if not 0 <= level <= 100:
             await interaction.response.send_message("❌ Volume 0-100.", ephemeral=True)
             return
-        state = self.get_state(interaction.guild)
-        state.volume = level / 100
-        if state.voice and state.voice.source:
-            state.voice.source.volume = state.volume
+        s = self._state(interaction.guild)
+        s.volume = level / 100
+        if s.voice and s.voice.source:
+            s.voice.source.volume = s.volume
         await interaction.response.send_message(f"🔊 Volume: **{level}%**")
 
-    @app_commands.command(name="queue", description="Lihat antrian lagu")
+    @app_commands.command(name="queue", description="Lihat antrian")
     async def queue_cmd(self, interaction: discord.Interaction):
-        state = self.get_state(interaction.guild)
-        embed = discord.Embed(title="🎵 Music Queue", color=0x9333ea)
-        if state.current:
-            embed.add_field(
-                name="▶ Sekarang",
-                value=f"[{state.current.title}]({state.current.webpage}) `{state.current.duration_str()}`",
-                inline=False
-            )
-        if state.queue:
-            lines = [f"`{i}.` [{s.title}]({s.webpage}) `{s.duration_str()}`"
-                     for i, s in enumerate(state.queue[:10], 1)]
-            embed.add_field(name=f"📋 Antrian ({len(state.queue)} lagu)", value="\n".join(lines), inline=False)
+        s = self._state(interaction.guild)
+        e = discord.Embed(title="🎵 Queue", color=0x9333ea)
+        if s.current:
+            e.add_field(name="▶ Now", value=f"[{s.current.title}]({s.current.webpage}) `{s.current.fmt_dur()}`", inline=False)
+        if s.queue:
+            lines = [f"`{i}.` [{x.title}]({x.webpage}) `{x.fmt_dur()}`" for i, x in enumerate(s.queue[:10], 1)]
+            e.add_field(name=f"📋 ({len(s.queue)} lagu)", value="\n".join(lines), inline=False)
         else:
-            embed.add_field(name="📋 Antrian", value="Kosong", inline=False)
-        await interaction.response.send_message(embed=embed)
+            e.add_field(name="📋", value="Kosong", inline=False)
+        await interaction.response.send_message(embed=e)
 
-    @app_commands.command(name="nowplaying", description="Lagu yang sedang diputar")
+    @app_commands.command(name="nowplaying", description="Lagu sekarang")
     async def nowplaying(self, interaction: discord.Interaction):
-        state = self.get_state(interaction.guild)
-        if not state.current:
+        s = self._state(interaction.guild)
+        if not s.current:
             await interaction.response.send_message("❌ Tidak ada lagu.", ephemeral=True)
             return
-        await interaction.response.send_message(embed=state.current.embed())
+        await interaction.response.send_message(embed=s.current.embed())
 
     @app_commands.command(name="deleteallqueue", description="Hapus semua antrian")
     async def deleteallqueue(self, interaction: discord.Interaction):
-        state = self.get_state(interaction.guild)
-        n = len(state.queue)
-        if not n:
-            await interaction.response.send_message("📋 Antrian kosong.", ephemeral=True)
-            return
-        state.queue.clear()
-        embed = discord.Embed(
-            title="🗑️ Antrian Dihapus",
-            description=f"**{n} lagu** dihapus." + (f"\n▶ `{state.current.title}` tetap diputar." if state.current else ""),
-            color=0xef4444
+        s = self._state(interaction.guild)
+        n = len(s.queue)
+        s.queue.clear()
+        await interaction.response.send_message(
+            embed=discord.Embed(title="🗑️ Queue Dihapus", description=f"{n} lagu dihapus.", color=0xef4444)
         )
-        await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="musictest", description="Test apakah bot bisa extract YouTube URL")
-    @app_commands.describe(url="URL YouTube untuk ditest")
+    @app_commands.command(name="musictest", description="Test yt-dlp & stream URL")
+    @app_commands.describe(url="URL untuk test (default: Rick Astley)")
     async def musictest(self, interaction: discord.Interaction, url: str = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"):
         await interaction.response.defer()
-        info = await get_stream_url(url)
+        info = await fetch_info(url)
         if info:
-            embed = discord.Embed(title="✅ Berhasil!", color=0x22c55e)
-            embed.add_field(name="Judul", value=info["title"], inline=False)
-            embed.add_field(name="Stream URL", value=f"`{info['url'][:80]}...`", inline=False)
-            await interaction.followup.send(embed=embed)
+            e = discord.Embed(title="✅ yt-dlp OK", color=0x22c55e)
+            e.add_field(name="Judul", value=info["title"], inline=False)
+            e.add_field(name="Stream URL", value=f"`{info['url'][:80]}...`", inline=False)
+            e.add_field(name="yt-dlp path", value=f"`{YTDLP}`", inline=False)
+            await interaction.followup.send(embed=e)
         else:
-            await interaction.followup.send("❌ Gagal extract URL. Cek log VPS untuk detail.", ephemeral=True)
+            await interaction.followup.send(f"❌ Gagal!\nyt-dlp path: `{YTDLP}`\nCek log VPS.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
