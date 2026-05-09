@@ -21,17 +21,29 @@ YTDL_STREAM_OPTIONS = {
     "source_address":     "0.0.0.0",
 }
 
-# Untuk ambil metadata playlist (cepat, tanpa download URL stream)
-YTDL_SEARCH_OPTIONS = {
+# Untuk pencarian / single video URL — TANPA extract_flat agar tidak return None
+YTDL_SINGLE_OPTIONS = {
     "format":             "bestaudio/best",
-    "noplaylist":         False,
+    "noplaylist":         True,   # jangan proses playlist jika URL video punya list=
     "nocheckcertificate": True,
     "ignoreerrors":       True,
     "quiet":              True,
     "no_warnings":        True,
     "default_search":     "ytsearch",
     "source_address":     "0.0.0.0",
-    "extract_flat":       "in_playlist",
+    # TIDAK pakai extract_flat agar single video selalu berhasil di-extract
+}
+
+# Untuk playlist URL — cepat, hanya ambil metadata
+YTDL_PLAYLIST_OPTIONS = {
+    "format":             "bestaudio/best",
+    "noplaylist":         False,
+    "nocheckcertificate": True,
+    "ignoreerrors":       True,
+    "quiet":              True,
+    "no_warnings":        True,
+    "source_address":     "0.0.0.0",
+    "extract_flat":       "in_playlist",  # cepat untuk playlist panjang
 }
 
 FFMPEG_OPTIONS = {
@@ -58,17 +70,37 @@ class Song:
     # ── Factory ───────────────────────────────────────────────────────────────
 
     @staticmethod
+    def _is_playlist_url(query: str) -> bool:
+        """Deteksi apakah query adalah URL playlist YouTube."""
+        return (
+            "playlist?list=" in query
+            or ("youtube.com" in query and "list=" in query and "watch" not in query)
+        )
+
+    @staticmethod
     async def from_query(query: str) -> list["Song"]:
         """
         Cari lagu/playlist dan kembalikan list Song.
-        Gunakan extract_flat agar cepat — stream URL diambil saat play.
+        - Playlist URL  → extract_flat (cepat, stream di-resolve saat play)
+        - Single / search → extract penuh (tidak pakai extract_flat)
         """
         loop = asyncio.get_event_loop()
-        ydl  = yt_dlp.YoutubeDL(YTDL_SEARCH_OPTIONS)
-        data = await loop.run_in_executor(
-            None, lambda: ydl.extract_info(query, download=False)
-        )
+
+        if Song._is_playlist_url(query):
+            # Playlist: ambil metadata saja dulu
+            ydl  = yt_dlp.YoutubeDL(YTDL_PLAYLIST_OPTIONS)
+            data = await loop.run_in_executor(
+                None, lambda: ydl.extract_info(query, download=False)
+            )
+        else:
+            # Single video URL atau kata kunci pencarian
+            ydl  = yt_dlp.YoutubeDL(YTDL_SINGLE_OPTIONS)
+            data = await loop.run_in_executor(
+                None, lambda: ydl.extract_info(query, download=False)
+            )
+
         if not data:
+            print(f"[Music] from_query: yt-dlp return None untuk query: {query}")
             return []
 
         if "entries" in data:
@@ -77,7 +109,7 @@ class Song:
                 if not entry:
                     continue
                 songs.append(Song(entry))
-            return songs
+            return songs[:100]  # maksimal 100 lagu
 
         return [Song(data)]
 
