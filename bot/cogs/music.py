@@ -12,7 +12,20 @@ YTDL_OPTIONS = {
     "format":               "bestaudio/best",
     "noplaylist":           False,
     "nocheckcertificate":   True,
-    "ignoreerrors":         False,
+    "ignoreerrors":         True,
+    "quiet":                True,
+    "no_warnings":          True,
+    "default_search":       "ytsearch",
+    "source_address":       "0.0.0.0",
+    # JANGAN pakai extract_flat agar URL audio stream langsung tersedia
+}
+
+# Options khusus untuk playlist (hanya ambil metadata, cepat)
+YTDL_FLAT_OPTIONS = {
+    "format":               "bestaudio/best",
+    "noplaylist":           False,
+    "nocheckcertificate":   True,
+    "ignoreerrors":         True,
     "quiet":                True,
     "no_warnings":          True,
     "default_search":       "ytsearch",
@@ -28,32 +41,62 @@ FFMPEG_OPTIONS = {
 
 class Song:
     def __init__(self, data: dict):
+        # stream URL bisa None untuk entry playlist (akan di-resolve saat play)
         self.url        = data.get("url")
         self.title      = data.get("title", "Unknown")
-        self.webpage    = data.get("webpage_url", "")
+        self.webpage    = data.get("webpage_url") or data.get("url", "")
         self.thumbnail  = data.get("thumbnail")
         self.duration   = data.get("duration", 0)
         self.uploader   = data.get("uploader", "Unknown")
         self.requester  = None  # set by caller
+        self._is_flat   = not data.get("url") or "youtube.com/watch" in (data.get("url") or "")
 
     @staticmethod
     async def from_query(query: str) -> list["Song"]:
         loop = asyncio.get_event_loop()
-        ydl  = yt_dlp.YoutubeDL(YTDL_OPTIONS)
-        data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+
+        # Deteksi playlist: gunakan flat options agar cepat, lagu di-resolve saat play
+        is_playlist_url = "playlist?list=" in query or ("list=" in query and "watch" not in query)
+
+        if is_playlist_url:
+            ydl_flat = yt_dlp.YoutubeDL(YTDL_FLAT_OPTIONS)
+            data = await loop.run_in_executor(None, lambda: ydl_flat.extract_info(query, download=False))
+        else:
+            ydl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
+            data = await loop.run_in_executor(None, lambda: ydl.extract_info(query, download=False))
+
         if not data:
             return []
+
         if "entries" in data:
             songs = []
             for entry in data["entries"]:
                 if not entry:
                     continue
-                # Resolve individual entry if needed
-                if not entry.get("url"):
-                    entry = ydl.extract_info(entry["webpage_url"], download=False)
+                # Untuk playlist flat, webpage_url digunakan; url-nya belum ada stream
+                # Tandai sebagai flat agar di-resolve saat giliran play
                 songs.append(Song(entry))
             return songs
         return [Song(data)]
+
+    async def resolve_stream(self):
+        """Resolve URL audio stream jika belum tersedia (untuk entry playlist flat)."""
+        # Cek apakah url sudah berupa stream audio atau masih URL halaman
+        if self.url and not ("youtube.com/watch" in self.url or "youtu.be/" in self.url):
+            return  # sudah berupa stream URL
+        webpage = self.webpage or self.url
+        if not webpage:
+            return
+        loop = asyncio.get_event_loop()
+        ydl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
+        data = await loop.run_in_executor(None, lambda: ydl.extract_info(webpage, download=False))
+        if data:
+            self.url       = data.get("url", self.url)
+            self.title     = data.get("title", self.title)
+            self.thumbnail = data.get("thumbnail") or self.thumbnail
+            self.duration  = data.get("duration") or self.duration
+            self.uploader  = data.get("uploader") or self.uploader
+            self.webpage   = data.get("webpage_url") or self.webpage
 
     def make_source(self) -> discord.FFmpegPCMAudio:
         return discord.PCMVolumeTransformer(
@@ -99,12 +142,36 @@ class GuildMusicState:
                 await self._next.wait()
                 continue
             self.current = self.queue.pop(0)
-            source = self.current.make_source()
-            source.volume = self.volume
+            # Resolve stream URL terlebih dahulu (penting untuk playlist)
+            try:
+                await self.current.resolve_stream()
+            except Exception as e:
+                print(f"[Music] Gagal resolve stream: {e}")
+                self._next.set()
+                continue
+
+            if not self.current.url:
+                print(f"[Music] Lagu '{self.current.title}' tidak punya stream URL, dilewati.")
+                self._next.set()
+                continue
+
+            # Tunggu voice client benar-benar terkoneksi
+            for _ in range(10):
+                if self.voice and self.voice.is_connected():
+                    break
+                await asyncio.sleep(0.5)
+
             if self.voice and self.voice.is_connected():
-                self.voice.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self._next.set))
-                await self._next.wait()
+                try:
+                    source = self.current.make_source()
+                    source.volume = self.volume
+                    self.voice.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self._next.set))
+                    await self._next.wait()
+                except Exception as e:
+                    print(f"[Music] Error saat play: {e}")
+                    self._next.set()
             else:
+                print("[Music] Voice tidak terkoneksi, melewati lagu.")
                 self._next.set()
 
     def skip(self):
