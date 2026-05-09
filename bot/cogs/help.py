@@ -33,14 +33,15 @@ class Help(commands.Cog):
 
         # ── Embed 2: 🎵 Musik ─────────────────────────────────────────────────
         music = discord.Embed(title="🎵  Musik — YouTube Player", color=0x9333ea)
-        music.add_field(name="🌐 `/play <lagu>`",    value="Putar dari YouTube (URL/kata kunci). Support playlist.", inline=False)
-        music.add_field(name="🌐 `/skip`",            value="Skip lagu sekarang.",             inline=True)
-        music.add_field(name="🌐 `/stop`",            value="Stop & keluar dari voice.",        inline=True)
-        music.add_field(name="🌐 `/pause`",           value="Pause musik.",                     inline=True)
-        music.add_field(name="🌐 `/resume`",          value="Lanjutkan musik.",                 inline=True)
-        music.add_field(name="🌐 `/queue`",           value="Lihat antrian lagu.",              inline=True)
-        music.add_field(name="🌐 `/nowplaying`",      value="Lagu yang sedang diputar.",        inline=True)
-        music.add_field(name="🌐 `/volume <0-100>`",  value="Atur volume.",                     inline=True)
+        music.add_field(name="🌐 `/play <lagu>`",         value="Putar dari YouTube (URL/kata kunci). Support playlist.", inline=False)
+        music.add_field(name="🌐 `/skip`",                value="Skip lagu sekarang.",             inline=True)
+        music.add_field(name="🌐 `/stop`",                value="Stop & keluar dari voice.",        inline=True)
+        music.add_field(name="🌐 `/pause`",               value="Pause musik.",                     inline=True)
+        music.add_field(name="🌐 `/resume`",              value="Lanjutkan musik.",                 inline=True)
+        music.add_field(name="🌐 `/queue`",               value="Lihat antrian lagu.",              inline=True)
+        music.add_field(name="🌐 `/nowplaying`",          value="Lagu yang sedang diputar.",        inline=True)
+        music.add_field(name="🌐 `/volume <0-100>`",      value="Atur volume.",                     inline=True)
+        music.add_field(name="🌐 `/deleteallqueue`",      value="Hapus semua antrian (lagu sekarang tetap diputar).", inline=True)
 
         # ── Embed 3: 🔊 Auto Voice ────────────────────────────────────────────
         voice = discord.Embed(title="🔊  Auto Voice Channel", color=0x7c3aed)

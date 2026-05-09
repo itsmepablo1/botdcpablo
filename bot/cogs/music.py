@@ -379,6 +379,27 @@ class Music(commands.Cog):
             return
         await interaction.response.send_message(embed=state.current.embed())
 
+    @app_commands.command(name="deleteallqueue", description="Hapus semua lagu dari antrian (lagu sekarang tetap diputar)")
+    async def deleteallqueue(self, interaction: discord.Interaction):
+        state = self.get_state(interaction.guild)
+        if not state.queue:
+            await interaction.response.send_message(
+                "📋 Antrian sudah kosong.", ephemeral=True
+            )
+            return
+        jumlah = len(state.queue)
+        state.queue.clear()
+        embed = discord.Embed(
+            title="🗑️ Antrian Dihapus",
+            description=(
+                f"**{jumlah} lagu** berhasil dihapus dari antrian.\n"
+                + (f"▶ Lagu **{state.current.title}** tetap diputar."
+                   if state.current else "")
+            ),
+            color=0xef4444,
+        )
+        await interaction.response.send_message(embed=embed)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Music(bot))
