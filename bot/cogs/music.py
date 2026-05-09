@@ -80,25 +80,54 @@ class Song:
         return [Song(data)]
 
     async def resolve_stream(self):
-        """Resolve URL audio stream jika belum tersedia (untuk entry playlist flat)."""
-        # Cek apakah url sudah berupa stream audio atau masih URL halaman
-        if self.url and not ("youtube.com/watch" in self.url or "youtu.be/" in self.url):
-            return  # sudah berupa stream URL
+        """Resolve URL audio stream. Raise Exception jika gagal."""
+        # URL dianggap sudah stream jika bukan halaman YouTube
+        def _is_stream_url(u: str) -> bool:
+            if not u:
+                return False
+            bad = ("youtube.com/watch", "youtu.be/", "youtube.com/shorts")
+            return not any(b in u for b in bad)
+
+        if _is_stream_url(self.url):
+            return  # sudah berupa stream URL, tidak perlu resolve
+
         webpage = self.webpage or self.url
         if not webpage:
-            return
+            raise Exception(f"Tidak ada URL untuk di-resolve: {self.title}")
+
         loop = asyncio.get_event_loop()
-        ydl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
+        ydl  = yt_dlp.YoutubeDL(YTDL_OPTIONS)
         data = await loop.run_in_executor(None, lambda: ydl.extract_info(webpage, download=False))
-        if data:
-            self.url       = data.get("url", self.url)
-            self.title     = data.get("title", self.title)
-            self.thumbnail = data.get("thumbnail") or self.thumbnail
-            self.duration  = data.get("duration") or self.duration
-            self.uploader  = data.get("uploader") or self.uploader
-            self.webpage   = data.get("webpage_url") or self.webpage
+
+        if not data:
+            raise Exception(f"yt-dlp gagal extract info untuk: {webpage}")
+
+        # Coba ambil stream URL langsung dari key 'url'
+        stream_url = data.get("url")
+
+        # Jika tidak ada, cari di formats[] (yt-dlp kadang menaruhnya di sana)
+        if not stream_url or not _is_stream_url(stream_url):
+            formats = data.get("formats", [])
+            # Pilih format audio terbaik
+            audio_formats = [f for f in formats if f.get("acodec") != "none" and f.get("url")]
+            if audio_formats:
+                # Urutkan berdasarkan abr (audio bitrate) descending
+                audio_formats.sort(key=lambda f: f.get("abr") or 0, reverse=True)
+                stream_url = audio_formats[0].get("url")
+
+        if not stream_url or not _is_stream_url(stream_url):
+            raise Exception(f"Tidak dapat menemukan URL stream audio untuk: {self.title} ({webpage})")
+
+        print(f"[Music] Resolved stream untuk '{data.get('title', self.title)}'")
+        self.url       = stream_url
+        self.title     = data.get("title")     or self.title
+        self.thumbnail = data.get("thumbnail") or self.thumbnail
+        self.duration  = data.get("duration")  or self.duration
+        self.uploader  = data.get("uploader")  or self.uploader
+        self.webpage   = data.get("webpage_url") or self.webpage
 
     def make_source(self) -> discord.FFmpegPCMAudio:
+        print(f"[Music] make_source URL: {self.url[:80]}..." if self.url else "[Music] make_source: URL kosong!")
         return discord.PCMVolumeTransformer(
             discord.FFmpegPCMAudio(self.url, **FFMPEG_OPTIONS),
             volume=0.5
