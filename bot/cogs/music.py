@@ -1,288 +1,281 @@
 """
-Music cog — Hybrid approach:
-- yt-dlp CLI  : ambil stream URL dari YouTube (terbukti berhasil)
-- wavelink     : play URL tersebut via Lavalink (handles Discord DAVE encryption)
+Music cog — yt-dlp + FFmpeg + discord.py native voice
+Tidak memerlukan Lavalink/Java. Lebih stabil dan langsung.
 """
-import asyncio, discord, subprocess, json, sys, os
-import wavelink
+import asyncio
+import discord
+import yt_dlp
 from discord import app_commands
 from discord.ext import commands
+from collections import deque
+import sys, os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-YTDLP = os.path.join(os.path.dirname(sys.executable), "yt-dlp")
-if not os.path.exists(YTDLP):
-    YTDLP = "yt-dlp"
+# ── yt-dlp config ─────────────────────────────────────────────────────────────
 
-print(f"[Music] yt-dlp: {YTDLP}", flush=True)
+YTDL_OPTIONS = {
+    "format":           "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
+    "noplaylist":       True,
+    "quiet":            True,
+    "no_warnings":      True,
+    "default_search":   "ytsearch",
+    "source_address":   "0.0.0.0",
+    "cookiefile":       None,
+    "age_limit":        99,
+    "geo_bypass":       True,
+}
 
+FFMPEG_OPTIONS = {
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+    "options":        "-vn -b:a 128k",
+}
 
-# ── yt-dlp fetch ──────────────────────────────────────────────────────────────
-
-async def fetch_info(query: str) -> dict | None:
-    """Gunakan yt-dlp CLI untuk dapatkan stream URL langsung."""
-    loop = asyncio.get_event_loop()
-
-    def _run():
-        cmd = [
-            YTDLP, "--no-playlist",
-            "-f", "bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
-            "--default-search", "ytsearch",
-            "--dump-json", "--no-warnings", "--quiet", query,
-        ]
-        print(f"[Music] yt-dlp: {query[:60]}", flush=True)
-        try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
-            if r.returncode != 0 or not r.stdout.strip():
-                print(f"[Music] yt-dlp err: {r.stderr[:200]}", flush=True)
-                return None
-            return json.loads(r.stdout.strip())
-        except Exception as e:
-            print(f"[Music] fetch err: {e}", flush=True)
-            return None
-
-    data = await loop.run_in_executor(None, _run)
-    if not data:
-        return None
-
-    url = data.get("url", "")
-    if not url or "youtube.com/watch" in url or "youtu.be" in url:
-        for fmt in reversed(data.get("formats", [])):
-            u = fmt.get("url", "")
-            if u and "googlevideo" in u:
-                url = u
-                break
-
-    if not url:
-        print(f"[Music] no stream URL: {data.get('title')}", flush=True)
-        return None
-
-    print(f"[Music] OK: {data.get('title')} | {url[:60]}...", flush=True)
-    return {
-        "title":    data.get("title", "Unknown"),
-        "url":      url,
-        "webpage":  data.get("webpage_url", ""),
-        "thumbnail": data.get("thumbnail"),
-        "duration": data.get("duration", 0),
-        "uploader": data.get("uploader", "Unknown"),
-    }
+ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
 
-# ── Song (metadata holder) ────────────────────────────────────────────────────
+# ── Song ──────────────────────────────────────────────────────────────────────
 
 class Song:
-    def __init__(self, info: dict, requester=None):
-        self.title    = info["title"]
-        self.url      = info["url"]
-        self.webpage  = info.get("webpage", "")
-        self.thumbnail= info.get("thumbnail")
-        self.duration = info.get("duration", 0)
-        self.uploader = info.get("uploader", "Unknown")
-        self.requester= requester
+    def __init__(self, data: dict, requester=None):
+        self.title     = data.get("title", "Unknown")
+        self.url       = data.get("url", "")          # direct audio stream URL
+        self.webpage   = data.get("webpage_url", "")
+        self.thumbnail = data.get("thumbnail")
+        self.duration  = data.get("duration", 0)
+        self.uploader  = data.get("uploader", "Unknown")
+        self.requester = requester
 
-    def fmt_dur(self):
-        if not self.duration: return "∞"
+    def fmt_dur(self) -> str:
+        if not self.duration:
+            return "∞"
         m, s = divmod(int(self.duration), 60)
         h, m = divmod(m, 60)
         return f"{h}:{m:02}:{s:02}" if h else f"{m}:{s:02}"
 
-    def embed(self, title="🎵 Sekarang Diputar") -> discord.Embed:
+    def embed(self, title: str = "🎵 Sekarang Diputar") -> discord.Embed:
         desc = f"[{self.title}]({self.webpage})" if self.webpage else self.title
-        e = discord.Embed(title=title, description=desc, color=0x9333ea)
+        e    = discord.Embed(title=title, description=desc, color=0x9333ea)
+        e.add_field(name="⏱ Durasi",   value=self.fmt_dur(),   inline=True)
+        e.add_field(name="🎤 Channel",  value=self.uploader,    inline=True)
+        if self.requester:
+            e.add_field(name="👤 Request", value=self.requester.mention, inline=True)
         if self.thumbnail:
             e.set_thumbnail(url=self.thumbnail)
-        e.add_field(name="⏱", value=self.fmt_dur(), inline=True)
-        e.add_field(name="🎤", value=self.uploader, inline=True)
-        if self.requester:
-            e.add_field(name="👤", value=self.requester.mention, inline=True)
         return e
 
+    def make_source(self) -> discord.AudioSource:
+        return discord.FFmpegOpusAudio(self.url, **FFMPEG_OPTIONS)
 
-# ── Guild state ───────────────────────────────────────────────────────────────
 
-class MusicState:
-    def __init__(self, guild_id: int):
-        self.guild_id = guild_id
-        self.queue: list[Song] = []
-        self.current: Song | None = None
+# ── GuildMusicState ───────────────────────────────────────────────────────────
+
+class GuildMusicState:
+    def __init__(self):
+        self.queue:   deque[Song]          = deque()
+        self.current: Song | None          = None
         self.channel: discord.TextChannel | None = None
+        self.volume:  float                = 1.0
+        self._lock:   asyncio.Lock         = asyncio.Lock()
 
-    async def play_song(self, song: Song, player: wavelink.Player):
-        """Load stream URL ke Lavalink dan play."""
-        self.current = song
-        print(f"[Music] Playing via Lavalink: {song.title}", flush=True)
+    @property
+    def is_playing(self) -> bool:
+        return bool(self.current)
 
-        # Load URL langsung ke Lavalink (HTTP source, bukan YouTube source)
-        tracks = await wavelink.Playable.search(song.url)
-        if not tracks:
-            print(f"[Music] Lavalink gagal load URL untuk: {song.title}", flush=True)
-            if self.channel:
-                await self.channel.send(f"⚠️ Gagal load **{song.title}**")
-            return
 
-        track = tracks[0] if isinstance(tracks, list) else tracks
-        await player.play(track)
+# ── fetch helpers ─────────────────────────────────────────────────────────────
 
-    async def send(self, msg=None, embed=None):
-        if not self.channel:
-            return
+async def fetch_song(query: str, requester=None) -> Song | None:
+    """Jalankan yt-dlp di thread executor dan kembalikan Song."""
+    loop = asyncio.get_event_loop()
+
+    def _extract():
+        q = query if query.startswith("http") else f"ytsearch:{query}"
         try:
-            if embed:
-                await self.channel.send(embed=embed)
-            elif msg:
-                await self.channel.send(msg)
-        except Exception:
-            pass
+            data = ytdl.extract_info(q, download=False)
+            if not data:
+                return None
+            # Handle playlist/search result
+            if "entries" in data:
+                data = data["entries"][0]
+            return data
+        except Exception as e:
+            print(f"[Music] yt-dlp error: {e}", flush=True)
+            return None
+
+    data = await loop.run_in_executor(None, _extract)
+    if not data:
+        return None
+
+    # Pastikan ada stream URL (bukan halaman web)
+    url = data.get("url", "")
+    if not url:
+        print(f"[Music] No stream URL for: {data.get('title')}", flush=True)
+        return None
+
+    print(f"[Music] Found: {data.get('title')} | {url[:60]}...", flush=True)
+    return Song(data, requester)
 
 
 # ── Music Cog ─────────────────────────────────────────────────────────────────
 
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.states: dict[int, MusicState] = {}
+        self.bot    = bot
+        self.states: dict[int, GuildMusicState] = {}
 
-    def _state(self, guild_id: int) -> MusicState:
-        if guild_id not in self.states:
-            self.states[guild_id] = MusicState(guild_id)
-        return self.states[guild_id]
+    def _state(self, gid: int) -> GuildMusicState:
+        if gid not in self.states:
+            self.states[gid] = GuildMusicState()
+        return self.states[gid]
 
-    async def _get_player(self, interaction: discord.Interaction) -> wavelink.Player | None:
+    # ── internal ──────────────────────────────────────────────────────────────
+
+    async def _join(self, interaction: discord.Interaction) -> discord.VoiceClient | None:
         if not interaction.user.voice or not interaction.user.voice.channel:
             await interaction.followup.send("❌ Masuk voice channel dulu!", ephemeral=True)
             return None
-        player: wavelink.Player = interaction.guild.voice_client  # type: ignore
-        if not player:
-            player = await interaction.user.voice.channel.connect(cls=wavelink.Player)
-            player.autoplay = wavelink.AutoPlayMode.disabled
-        state = self._state(interaction.guild.id)
-        state.channel = interaction.channel
-        player._state = state  # type: ignore
-        return player
+        vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
+        if vc and vc.channel != interaction.user.voice.channel:
+            await vc.move_to(interaction.user.voice.channel)
+        elif not vc:
+            vc = await interaction.user.voice.channel.connect()
+        return vc
 
-    # ── Events ────────────────────────────────────────────────────────────────
-
-    @commands.Cog.listener()
-    async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
-        player = payload.player
-        if not player:
-            return
-        state: MusicState = getattr(player, "_state", None)
-        if not state:
-            return
+    def _play_next(self, vc: discord.VoiceClient, state: GuildMusicState):
+        """Callback saat lagu selesai — jalankan lagu berikutnya."""
         if state.queue:
-            next_song = state.queue.pop(0)
-            await state.play_song(next_song, player)
-            await state.send(embed=next_song.embed())
+            next_song = state.queue.popleft()
+            state.current = next_song
+            try:
+                source = next_song.make_source()
+                vc.play(source, after=lambda e: self._on_finish(e, vc, state))
+            except Exception as ex:
+                print(f"[Music] play_next error: {ex}", flush=True)
+                state.current = None
+            # Kirim embed ke channel
+            if state.channel:
+                asyncio.run_coroutine_threadsafe(
+                    state.channel.send(embed=next_song.embed()),
+                    self.bot.loop
+                )
         else:
             state.current = None
 
-    @commands.Cog.listener()
-    async def on_wavelink_track_exception(self, payload: wavelink.TrackExceptionEventPayload):
-        player = payload.player
-        state: MusicState = getattr(player, "_state", None)
-        err = payload.exception.get("message", "Unknown error") if payload.exception else "Unknown"
-        print(f"[Music] Track exception: {err}", flush=True)
-        if state:
-            await state.send(f"⚠️ Error saat memutar: `{err}`")
-            if state.queue:
-                next_song = state.queue.pop(0)
-                await state.play_song(next_song, player)
+    def _on_finish(self, error, vc: discord.VoiceClient, state: GuildMusicState):
+        if error:
+            print(f"[Music] Player error: {error}", flush=True)
+        self._play_next(vc, state)
 
     # ── Commands ──────────────────────────────────────────────────────────────
 
-    @app_commands.command(name="play", description="Putar lagu dari YouTube atau sumber lain")
-    @app_commands.describe(query="URL atau kata kunci lagu")
+    @app_commands.command(name="play", description="Putar lagu dari YouTube (URL atau nama lagu)")
+    @app_commands.describe(query="URL atau nama lagu yang ingin diputar")
     async def play(self, interaction: discord.Interaction, query: str):
         await interaction.response.defer()
+        state = self._state(interaction.guild.id)
+        state.channel = interaction.channel
+
         await interaction.followup.send(f"🔍 Mencari: **{query}**...")
 
-        # Fetch stream URL via yt-dlp (terbukti berhasil)
-        info = await fetch_info(query)
-        if not info:
-            await interaction.followup.send("❌ Lagu tidak ditemukan!", ephemeral=True)
+        song = await fetch_song(query, interaction.user)
+        if not song:
+            await interaction.followup.send("❌ Lagu tidak ditemukan atau terjadi error.", ephemeral=True)
             return
 
-        # Join voice via Lavalink (handles Discord DAVE encryption)
-        player = await self._get_player(interaction)
-        if not player:
+        vc = await self._join(interaction)
+        if not vc:
             return
 
-        song = Song(info, interaction.user)
-        state = self._state(interaction.guild.id)
-
-        if player.playing or player.paused:
+        if vc.is_playing() or vc.is_paused():
             state.queue.append(song)
-            await interaction.followup.send(embed=song.embed("✅ Ditambahkan ke Queue"))
+            await interaction.followup.send(
+                embed=song.embed(f"✅ Ditambahkan ke Queue (#{len(state.queue)})")
+            )
         else:
-            await state.play_song(song, player)
-            await interaction.followup.send(embed=song.embed("▶ Memutar"))
+            state.current = song
+            try:
+                source = song.make_source()
+                vc.play(source, after=lambda e: self._on_finish(e, vc, state))
+                await interaction.followup.send(embed=song.embed("▶ Sekarang Memutar"))
+            except Exception as e:
+                print(f"[Music] play error: {e}", flush=True)
+                await interaction.followup.send(f"❌ Gagal memutar: `{e}`", ephemeral=True)
+                state.current = None
 
     @app_commands.command(name="skip", description="Skip lagu sekarang")
     async def skip(self, interaction: discord.Interaction):
-        player: wavelink.Player = interaction.guild.voice_client  # type: ignore
-        if not player or not player.playing:
-            await interaction.response.send_message("❌ Tidak ada lagu.", ephemeral=True)
+        vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
+        if not vc or not vc.is_playing():
+            await interaction.response.send_message("❌ Tidak ada lagu yang diputar.", ephemeral=True)
             return
-        await player.skip(force=True)
-        await interaction.response.send_message("⏭ Di-skip!")
+        vc.stop()
+        await interaction.response.send_message("⏭ Lagu di-skip!")
 
-    @app_commands.command(name="stop", description="Stop musik & keluar voice")
+    @app_commands.command(name="stop", description="Stop musik dan bot keluar dari voice")
     async def stop(self, interaction: discord.Interaction):
-        player: wavelink.Player = interaction.guild.voice_client  # type: ignore
+        vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
         state = self._state(interaction.guild.id)
         state.queue.clear()
         state.current = None
-        if player:
-            await player.stop()
-            await player.disconnect()
-        await interaction.response.send_message("⏹ Stop.")
+        if vc:
+            vc.stop()
+            await vc.disconnect()
+        await interaction.response.send_message("⏹ Musik dihentikan.")
 
     @app_commands.command(name="pause", description="Pause musik")
     async def pause(self, interaction: discord.Interaction):
-        player: wavelink.Player = interaction.guild.voice_client  # type: ignore
-        if not player or not player.playing:
+        vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
+        if not vc or not vc.is_playing():
             await interaction.response.send_message("❌ Tidak ada yang diputar.", ephemeral=True)
             return
-        await player.pause(True)
+        vc.pause()
         await interaction.response.send_message("⏸ Di-pause.")
 
     @app_commands.command(name="resume", description="Lanjutkan musik")
     async def resume(self, interaction: discord.Interaction):
-        player: wavelink.Player = interaction.guild.voice_client  # type: ignore
-        if not player or not player.paused:
+        vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
+        if not vc or not vc.is_paused():
             await interaction.response.send_message("❌ Tidak dalam keadaan pause.", ephemeral=True)
             return
-        await player.pause(False)
+        vc.resume()
         await interaction.response.send_message("▶ Dilanjutkan.")
 
-    @app_commands.command(name="volume", description="Atur volume 0-100")
-    @app_commands.describe(level="Volume 0-100")
+    @app_commands.command(name="volume", description="Atur volume 0-200")
+    @app_commands.describe(level="Volume 0-200 (default: 100)")
     async def volume(self, interaction: discord.Interaction, level: int):
-        if not 0 <= level <= 100:
-            await interaction.response.send_message("❌ Volume harus 0-100.", ephemeral=True)
+        if not 0 <= level <= 200:
+            await interaction.response.send_message("❌ Volume harus 0-200.", ephemeral=True)
             return
-        player: wavelink.Player = interaction.guild.voice_client  # type: ignore
-        if not player:
+        vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
+        if not vc or not vc.source:
             await interaction.response.send_message("❌ Bot tidak di voice.", ephemeral=True)
             return
-        await player.set_volume(level)
+        if isinstance(vc.source, discord.PCMVolumeTransformer):
+            vc.source.volume = level / 100
         await interaction.response.send_message(f"🔊 Volume: **{level}%**")
 
     @app_commands.command(name="queue", description="Lihat antrian lagu")
     async def queue_cmd(self, interaction: discord.Interaction):
         state = self._state(interaction.guild.id)
-        e = discord.Embed(title="🎵 Queue", color=0x9333ea)
+        e     = discord.Embed(title="🎵 Queue", color=0x9333ea)
         if state.current:
-            e.add_field(name="▶ Now", value=f"[{state.current.title}]({state.current.webpage}) `{state.current.fmt_dur()}`", inline=False)
-        if state.queue:
-            lines = [f"`{i}.` [{s.title}]({s.webpage}) `{s.fmt_dur()}`" for i, s in enumerate(state.queue[:10], 1)]
-            e.add_field(name=f"📋 ({len(state.queue)} lagu)", value="\n".join(lines), inline=False)
+            e.add_field(
+                name="▶ Sekarang",
+                value=f"[{state.current.title}]({state.current.webpage}) `{state.current.fmt_dur()}`",
+                inline=False
+            )
+        q = list(state.queue)
+        if q:
+            lines = [f"`{i}.` [{s.title}]({s.webpage}) `{s.fmt_dur()}`" for i, s in enumerate(q[:10], 1)]
+            if len(q) > 10:
+                lines.append(f"... dan {len(q) - 10} lagi")
+            e.add_field(name=f"📋 Antrian ({len(q)} lagu)", value="\n".join(lines), inline=False)
         else:
-            e.add_field(name="📋", value="Kosong", inline=False)
+            e.add_field(name="📋 Antrian", value="Kosong", inline=False)
         await interaction.response.send_message(embed=e)
 
-    @app_commands.command(name="nowplaying", description="Lagu yang sedang diputar")
+    @app_commands.command(name="nowplaying", description="Info lagu yang sedang diputar")
     async def nowplaying(self, interaction: discord.Interaction):
         state = self._state(interaction.guild.id)
         if not state.current:
@@ -290,18 +283,30 @@ class Music(commands.Cog):
             return
         await interaction.response.send_message(embed=state.current.embed())
 
-    @app_commands.command(name="deleteallqueue", description="Hapus semua antrian")
+    @app_commands.command(name="deleteallqueue", description="Hapus semua antrian lagu")
     async def deleteallqueue(self, interaction: discord.Interaction):
         state = self._state(interaction.guild.id)
-        n = len(state.queue)
+        n     = len(state.queue)
         state.queue.clear()
-        await interaction.response.send_message(
-            embed=discord.Embed(
-                title="🗑️ Queue Dihapus",
-                description=f"**{n} lagu** dihapus." + (f"\n▶ `{state.current.title}` tetap diputar." if state.current else ""),
-                color=0xef4444
-            )
+        e = discord.Embed(
+            title="🗑️ Queue Dihapus",
+            description=f"**{n} lagu** dihapus dari antrian."
+                        + (f"\n▶ `{state.current.title}` tetap diputar." if state.current else ""),
+            color=0xef4444
         )
+        await interaction.response.send_message(embed=e)
+
+    @app_commands.command(name="shuffle", description="Acak urutan antrian lagu")
+    async def shuffle(self, interaction: discord.Interaction):
+        import random
+        state = self._state(interaction.guild.id)
+        if not state.queue:
+            await interaction.response.send_message("❌ Antrian kosong.", ephemeral=True)
+            return
+        q = list(state.queue)
+        random.shuffle(q)
+        state.queue = deque(q)
+        await interaction.response.send_message(f"🔀 {len(q)} lagu diacak!")
 
 
 async def setup(bot: commands.Bot):
