@@ -8,25 +8,31 @@ from panel.routers.auth import verify_token
 from bot import database as db
 
 router = APIRouter()
+def _s(v): return str(v) if v is not None else None
 
 @router.get("/{guild_id}")
 async def get_autovoice(guild_id: int, payload: dict = Depends(verify_token)):
     cfg = await db.get_guild_config(guild_id)
     return {
-        "guild_id":             guild_id,
-        "autovoice_channel_id": cfg.get("autovoice_channel_id"),
+        "guild_id":             str(guild_id),
+        "autovoice_channel_id": _s(cfg.get("autovoice_channel_id")),
     }
 
 @router.get("/{guild_id}/active-vcs")
 async def get_active_vcs(guild_id: int, payload: dict = Depends(verify_token)):
     vcs = await db.get_all_auto_voice_details(guild_id)
-    return vcs
+    # Return IDs as strings to prevent JS precision loss
+    return [{**v,
+             "channel_id": str(v["channel_id"]),
+             "guild_id":   str(v["guild_id"]),
+             "owner_id":   str(v["owner_id"])} for v in vcs]
 
 class AutoVoiceConfig(BaseModel):
-    guild_id:   int
+    guild_id:   str
     channel_id: Optional[int] = None
 
 @router.post("/update")
 async def update_autovoice(data: AutoVoiceConfig, payload: dict = Depends(verify_token)):
-    await db.set_guild_config(data.guild_id, autovoice_channel_id=data.channel_id)
+    gid = int(data.guild_id)
+    await db.set_guild_config(gid, autovoice_channel_id=data.channel_id)
     return {"status": "ok"}

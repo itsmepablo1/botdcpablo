@@ -9,14 +9,16 @@ from bot import database as db
 
 router = APIRouter()
 
+def _s(v): return str(v) if v is not None else None
+
 @router.get("/{guild_id}")
 async def get_streaming(guild_id: int, payload: dict = Depends(verify_token)):
     cfg = await db.get_guild_config(guild_id)
     return {
-        "guild_id":                     guild_id,
-        "streaming_channel_id":         cfg.get("streaming_channel_id"),
-        "streaming_role_id":            cfg.get("streaming_role_id"),
-        "streaming_on_stream_role_id":  cfg.get("streaming_on_stream_role_id"),
+        "guild_id":                     str(guild_id),
+        "streaming_channel_id":         _s(cfg.get("streaming_channel_id")),
+        "streaming_role_id":            _s(cfg.get("streaming_role_id")),
+        "streaming_on_stream_role_id":  _s(cfg.get("streaming_on_stream_role_id")),
     }
 
 class StreamingConfig(BaseModel):
