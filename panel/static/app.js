@@ -203,11 +203,11 @@ async function saveWelcome() {
   const gid = document.getElementById('wl-guild').value.trim();
   if (!gid) return showAlert('wl-alert', '❌ Masukkan Guild ID!', 'error');
   const body = {
-    guild_id:          gid,
-    welcome_channel_id: parseInt(document.getElementById('wl-wch').value)  || null,
-    welcome_message:    document.getElementById('wl-wmsg').value.trim()     || null,
-    leave_channel_id:  parseInt(document.getElementById('wl-lch').value)   || null,
-    leave_message:     document.getElementById('wl-lmsg').value.trim()     || null,
+    guild_id:           gid,
+    welcome_channel_id: document.getElementById('wl-wch').value.trim()  || null,
+    welcome_message:    document.getElementById('wl-wmsg').value.trim()  || null,
+    leave_channel_id:   document.getElementById('wl-lch').value.trim()   || null,
+    leave_message:      document.getElementById('wl-lmsg').value.trim()  || null,
   };
   const res = await apiFetch('/api/welcome/update', { method: 'POST', body: JSON.stringify(body) });
   if (res.ok) showAlert('wl-alert', '✅ Config berhasil disimpan!', 'success');
@@ -281,8 +281,8 @@ async function addRoleToGroup(groupId) {
   const roleIdEl = document.getElementById(`role-id-${groupId}`);
   const emojiEl  = document.getElementById(`role-emoji-${groupId}`);
   const descEl   = document.getElementById(`role-desc-${groupId}`);
-  const roleId   = parseInt(roleIdEl.value.trim());
-  if (!roleId || isNaN(roleId)) return showAlert('roles-alert', '❌ Role ID harus berupa angka!', 'error');
+  const roleId   = roleIdEl.value.trim();
+  if (!roleId) return showAlert('roles-alert', '❌ Role ID harus diisi!', 'error');
   const res = await apiFetch('/api/roles/role/add', {
     method: 'POST',
     body: JSON.stringify({
@@ -293,7 +293,7 @@ async function addRoleToGroup(groupId) {
     })
   });
   if (res.ok) {
-    showAlert('roles-alert', `✅ Role ID ${roleId} ditambahkan ke grup! Jalankan /roles post <panel_id> di Discord untuk update panel.`, 'success');
+    showAlert('roles-alert', `✅ Role ID ${roleId} ditambahkan!`, 'success');
     roleIdEl.value = ''; emojiEl.value = ''; descEl.value = '';
     loadRoles();
   } else {
@@ -309,7 +309,7 @@ async function createPanel() {
   if (!gid || !chid) return showAlert('roles-alert', '❌ Guild ID & Channel ID wajib diisi!', 'error');
   const res = await apiFetch('/api/roles/panel/create', {
     method: 'POST',
-    body: JSON.stringify({ guild_id: gid, channel_id: parseInt(chid), title, description: desc })
+    body: JSON.stringify({ guild_id: gid, channel_id: chid, title, description: desc })
   });
   if (res.ok) {
     const d = await res.json();
@@ -386,7 +386,7 @@ async function saveAutoVoice() {
   const chid = document.getElementById('av-chid').value.trim();
   if (!gid) return showAlert('av-alert', '❌ Masukkan Guild ID!', 'error');
   const res = await apiFetch('/api/autovoice/update', {
-    method: 'POST', body: JSON.stringify({ guild_id: gid, channel_id: parseInt(chid) || null })
+    method: 'POST', body: JSON.stringify({ guild_id: gid, channel_id: chid || null })
   });
   if (res.ok) showAlert('av-alert', '✅ Config disimpan!', 'success');
   else        showAlert('av-alert', '❌ Gagal.', 'error');
@@ -424,9 +424,9 @@ async function saveStatus() {
   const res = await apiFetch('/api/status/update', {
     method: 'POST',
     body: JSON.stringify({
-      guild_id:                  gid,
-      status_member_channel_id:  parseInt(document.getElementById('sc-mch').value) || null,
-      status_online_channel_id:  parseInt(document.getElementById('sc-och').value) || null,
+      guild_id:                 gid,
+      status_member_channel_id: document.getElementById('sc-mch').value.trim() || null,
+      status_online_channel_id: document.getElementById('sc-och').value.trim() || null,
     })
   });
   if (res.ok) showAlert('sc-alert', '✅ Config disimpan!', 'success');
@@ -450,16 +450,15 @@ async function loadStreaming() {
 }
 
 async function saveStreaming() {
-  const gid  = document.getElementById('st-guild').value.trim();
-  const orid = parseInt(document.getElementById('st-orid').value) || null;
+  const gid = document.getElementById('st-guild').value.trim();
   if (!gid) return showAlert('st-alert', '❌ Masukkan Guild ID!', 'error');
   const res = await apiFetch('/api/streaming/update', {
     method: 'POST',
     body: JSON.stringify({
       guild_id:          gid,
-      channel_id:        parseInt(document.getElementById('st-chid').value) || null,
-      role_id:           parseInt(document.getElementById('st-rid').value)  || null,
-      on_stream_role_id: orid,
+      channel_id:        document.getElementById('st-chid').value.trim() || null,
+      role_id:           document.getElementById('st-rid').value.trim()  || null,
+      on_stream_role_id: document.getElementById('st-orid').value.trim() || null,
     })
   });
   if (res.ok) showAlert('st-alert', '✅ Config disimpan!', 'success');
@@ -470,10 +469,11 @@ async function disableStreaming() {
   const gid = document.getElementById('st-guild').value.trim();
   if (!gid) return showAlert('st-alert', '❌ Masukkan Guild ID!', 'error');
   await apiFetch('/api/streaming/update', {
-    method: 'POST', body: JSON.stringify({ guild_id: gid, channel_id: null, role_id: null })
+    method: 'POST', body: JSON.stringify({ guild_id: gid, channel_id: null, role_id: null, on_stream_role_id: null })
   });
   document.getElementById('st-chid').value = '';
   document.getElementById('st-rid').value  = '';
+  document.getElementById('st-orid').value = '';
   showAlert('st-alert', '✅ Streaming notif dinonaktifkan.', 'success');
 }
 

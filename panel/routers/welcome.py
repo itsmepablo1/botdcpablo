@@ -9,12 +9,13 @@ from bot import database as db
 
 router = APIRouter()
 def _s(v): return str(v) if v is not None else None
+def _i(v): return int(v) if v else None
 
 class WelcomeConfig(BaseModel):
     guild_id:           str
-    welcome_channel_id: Optional[int] = None
+    welcome_channel_id: Optional[str] = None
     welcome_message:    Optional[str] = None
-    leave_channel_id:   Optional[int] = None
+    leave_channel_id:   Optional[str] = None
     leave_message:      Optional[str] = None
 
 @router.get("/{guild_id}")
@@ -35,11 +36,11 @@ async def update_welcome(data: WelcomeConfig, payload: dict = Depends(verify_tok
     gid = int(data.guild_id)
     updates = {}
     if data.welcome_channel_id is not None:
-        updates["welcome_channel_id"] = data.welcome_channel_id
+        updates["welcome_channel_id"] = _i(data.welcome_channel_id)
     if data.welcome_message is not None:
         updates["welcome_message"] = data.welcome_message
     if data.leave_channel_id is not None:
-        updates["leave_channel_id"] = data.leave_channel_id
+        updates["leave_channel_id"] = _i(data.leave_channel_id)
     if data.leave_message is not None:
         updates["leave_message"] = data.leave_message
     if updates:
