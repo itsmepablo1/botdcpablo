@@ -443,20 +443,23 @@ async function loadStreaming() {
   saveGuildId('streaming', gid);
   const res  = await apiFetch(`/api/streaming/${gid}`);
   const data = await res.json();
-  document.getElementById('st-chid').value = data.streaming_channel_id || '';
-  document.getElementById('st-rid').value  = data.streaming_role_id    || '';
+  document.getElementById('st-chid').value = data.streaming_channel_id         || '';
+  document.getElementById('st-rid').value  = data.streaming_role_id             || '';
+  document.getElementById('st-orid').value = data.streaming_on_stream_role_id  || '';
   showAlert('st-alert', '✅ Config dimuat!', 'success');
 }
 
 async function saveStreaming() {
-  const gid = document.getElementById('st-guild').value.trim();
+  const gid  = document.getElementById('st-guild').value.trim();
+  const orid = parseInt(document.getElementById('st-orid').value) || null;
   if (!gid) return showAlert('st-alert', '❌ Masukkan Guild ID!', 'error');
   const res = await apiFetch('/api/streaming/update', {
     method: 'POST',
     body: JSON.stringify({
-      guild_id:   gid,
-      channel_id: parseInt(document.getElementById('st-chid').value) || null,
-      role_id:    parseInt(document.getElementById('st-rid').value)  || null,
+      guild_id:          gid,
+      channel_id:        parseInt(document.getElementById('st-chid').value) || null,
+      role_id:           parseInt(document.getElementById('st-rid').value)  || null,
+      on_stream_role_id: orid,
     })
   });
   if (res.ok) showAlert('st-alert', '✅ Config disimpan!', 'success');

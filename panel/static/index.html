@@ -397,12 +397,17 @@
             <div class="form-group">
               <label>Notif Channel ID</label>
               <input type="text" id="st-chid" placeholder="Channel ID (angka)"/>
-              <div class="hint">Channel tempat notifikasi streaming dikirim.</div>
+              <div class="hint">Channel tempat notifikasi streaming dikirim. (Opsional)</div>
             </div>
             <div class="form-group">
-              <label>Streamer Role ID</label>
+              <label>🎭 Streamer Role ID</label>
               <input type="text" id="st-rid" placeholder="Role ID (angka)"/>
               <div class="hint">Hanya member dengan role ini yang dideteksi sebagai streamer.</div>
+            </div>
+            <div class="form-group">
+              <label>🔴 On Stream Role ID</label>
+              <input type="text" id="st-orid" placeholder="Role ID (angka)"/>
+              <div class="hint">Role ini otomatis ditambah saat live & dihapus saat offline.</div>
             </div>
           </div>
           <div style="display:flex;gap:12px">
@@ -411,6 +416,7 @@
           </div>
           <div class="alert" id="st-alert" style="display:none"></div>
         </div>
+
         <div class="card">
           <div class="card-header"><h2 class="card-title">📡 Platform yang Didukung</h2></div>
           <div class="commands-grid">
