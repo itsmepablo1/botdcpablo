@@ -133,6 +133,7 @@ class GuildState:
         self.queue:   deque[Song]               = deque()
         self.current: Song | None               = None
         self.channel: discord.abc.Messageable | None = None
+        self.loop:    bool                      = False
 
 
 # ── Cog ───────────────────────────────────────────────────────────────────────
@@ -169,6 +170,17 @@ class Music(commands.Cog):
             return None
 
     def _play_next(self, vc: discord.VoiceClient, state: GuildState):
+        # Jika repeat aktif, putar ulang lagu yang sama
+        if state.loop and state.current:
+            song = state.current
+            try:
+                src = song.make_source()
+                vc.play(src, after=lambda e: self._after(e, vc, state))
+            except Exception as ex:
+                print(f"[Music] repeat error: {ex}", flush=True)
+                state.current = None
+            return
+
         if state.queue:
             song = state.queue.popleft()
             state.current = song
@@ -329,6 +341,30 @@ class Music(commands.Cog):
         random.shuffle(q)
         state.queue = deque(q)
         await interaction.response.send_message(f"🔀 {len(q)} lagu diacak!")
+
+    @app_commands.command(name="repeat", description="Aktifkan atau matikan repeat lagu sekarang")
+    @app_commands.describe(mode="on = repeat aktif, off = repeat mati")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="on",  value="on"),
+        app_commands.Choice(name="off", value="off"),
+    ])
+    async def repeat(self, interaction: discord.Interaction, mode: str):
+        state = self._state(interaction.guild.id)
+        state.loop = (mode == "on")
+        if state.loop:
+            song_name = state.current.title if state.current else "—"
+            e = discord.Embed(
+                title="🔁 Repeat ON",
+                description=f"Lagu **{song_name}** akan diputar berulang.",
+                color=0x9333ea
+            )
+        else:
+            e = discord.Embed(
+                title="➡️ Repeat OFF",
+                description="Repeat dinonaktifkan. Lagu berikutnya dari queue.",
+                color=0x6b7280
+            )
+        await interaction.response.send_message(embed=e)
 
 
 async def setup(bot: commands.Bot):
