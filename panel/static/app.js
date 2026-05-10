@@ -187,39 +187,75 @@ async function loadRoles() {
 function renderRolePanels(panels) {
   const container = document.getElementById('roles-panels');
   if (!panels.length) {
-    container.innerHTML = '<div class="card" style="padding:22px;color:var(--text3);text-align:center">Belum ada panel role.</div>';
+    container.innerHTML = '<div class="card" style="padding:22px;color:var(--text3);text-align:center">Belum ada panel role. Buat panel baru di atas.</div>';
     return;
   }
   container.innerHTML = panels.map(p => `
-    <div class="panel-block">
+    <div class="panel-block" style="margin-bottom:16px">
       <div class="panel-block-header">
         <div>
           <span style="font-weight:600;color:var(--text)">Panel #${p.id}: ${escHtml(p.title)}</span>
           <span style="margin-left:12px;font-size:12px;color:var(--text3)">Channel: <code>${p.channel_id}</code></span>
-          ${p.message_id ? `<span style="margin-left:8px;font-size:12px;color:var(--green)">✅ Posted</span>` : `<span style="margin-left:8px;font-size:12px;color:var(--amber)">⚠ Belum dikirim</span>`}
+          ${p.message_id
+            ? `<span style="margin-left:8px;font-size:12px;color:#22c55e">✅ Posted</span>`
+            : `<span style="margin-left:8px;font-size:12px;color:#f59e0b">⚠ Belum dikirim — jalankan <code>/roles post ${p.id}</code> di Discord</span>`}
         </div>
         <button class="btn-danger" style="padding:6px 12px;font-size:12px" onclick="deletePanel(${p.id})">🗑 Hapus</button>
       </div>
       <div class="panel-block-body">
-        ${p.groups.map(g => `
-          <div style="margin-bottom:12px">
-            <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px">📋 ${escHtml(g.name)}</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-              ${g.options.map(o => `
-                <span style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:4px 10px;font-size:12px;color:#c4b5fd">
-                  ${o.emoji || ''} Role ID: ${o.role_id}${o.description ? ` — ${escHtml(o.description)}` : ''}
+        ${p.groups.length === 0
+          ? `<div style="color:var(--text3);font-size:13px;margin-bottom:10px">Belum ada grup. Tambahkan grup di bawah.</div>`
+          : p.groups.map(g => `
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:12px;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px">📋 ${escHtml(g.name)} <span style="font-size:11px;color:var(--text3);font-weight:400">(Group ID: ${g.id})</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+              ${g.options.length === 0
+                ? `<span style="color:var(--text3);font-size:12px">Belum ada role</span>`
+                : g.options.map(o => `
+                <span style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.25);border-radius:8px;padding:4px 10px;font-size:12px;color:#c4b5fd;display:flex;align-items:center;gap:6px">
+                  ${o.emoji || '🎭'} <code style="color:#e9d5ff">${o.role_id}</code>${o.description ? ` — ${escHtml(o.description)}` : ''}
                 </span>
               `).join('')}
             </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <input type="text" id="role-id-${g.id}" placeholder="Role ID" style="max-width:160px;font-size:13px"/>
+              <input type="text" id="role-emoji-${g.id}" placeholder="Emoji (opsional)" style="max-width:120px;font-size:13px"/>
+              <input type="text" id="role-desc-${g.id}" placeholder="Deskripsi (opsional)" style="max-width:180px;font-size:13px"/>
+              <button class="btn-sm" onclick="addRoleToGroup(${g.id})">➕ Tambah Role</button>
+            </div>
           </div>
         `).join('')}
-        <div style="display:flex;gap:10px;margin-top:10px">
+        <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
           <input type="text" id="ng-name-${p.id}" placeholder="Nama grup baru..." style="max-width:200px"/>
           <button class="btn-sm" onclick="addGroup(${p.id})">➕ Tambah Grup</button>
         </div>
       </div>
     </div>
   `).join('');
+}
+
+async function addRoleToGroup(groupId) {
+  const roleIdEl = document.getElementById(`role-id-${groupId}`);
+  const emojiEl  = document.getElementById(`role-emoji-${groupId}`);
+  const descEl   = document.getElementById(`role-desc-${groupId}`);
+  const roleId   = parseInt(roleIdEl.value.trim());
+  if (!roleId || isNaN(roleId)) return showAlert('roles-alert', '❌ Role ID harus berupa angka!', 'error');
+  const res = await apiFetch('/api/roles/role/add', {
+    method: 'POST',
+    body: JSON.stringify({
+      group_id:    groupId,
+      role_id:     roleId,
+      emoji:       emojiEl.value.trim() || null,
+      description: descEl.value.trim()  || null,
+    })
+  });
+  if (res.ok) {
+    showAlert('roles-alert', `✅ Role ID ${roleId} ditambahkan ke grup! Jalankan /roles post <panel_id> di Discord untuk update panel.`, 'success');
+    roleIdEl.value = ''; emojiEl.value = ''; descEl.value = '';
+    loadRoles();
+  } else {
+    showAlert('roles-alert', '❌ Gagal menambahkan role.', 'error');
+  }
 }
 
 async function createPanel() {
@@ -234,7 +270,7 @@ async function createPanel() {
   });
   if (res.ok) {
     const d = await res.json();
-    showAlert('roles-alert', `✅ Panel #${d.panel_id} dibuat! Gunakan /roles post ${d.panel_id} di Discord untuk mengirimnya.`, 'success');
+    showAlert('roles-alert', `✅ Panel #${d.panel_id} dibuat! Tambahkan grup & role di bawah, lalu jalankan /roles post ${d.panel_id} di Discord.`, 'success');
     loadRoles();
   } else {
     showAlert('roles-alert', '❌ Gagal membuat panel.', 'error');
@@ -255,7 +291,7 @@ async function addGroup(panelId) {
   const res = await apiFetch('/api/roles/group/add', {
     method: 'POST', body: JSON.stringify({ panel_id: panelId, name })
   });
-  if (res.ok) { showAlert('roles-alert', `✅ Grup "${name}" ditambahkan. Tambah role via /roles add di Discord.`, 'success'); loadRoles(); }
+  if (res.ok) { showAlert('roles-alert', `✅ Grup "${name}" ditambahkan! Sekarang tambahkan Role ID ke grup ini.`, 'success'); loadRoles(); }
   else showAlert('roles-alert', '❌ Gagal.', 'error');
 }
 
