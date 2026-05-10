@@ -152,14 +152,35 @@ class Welcome(commands.Cog):
         await db.set_guild_config(interaction.guild.id, leave_background=path)
         await interaction.followup.send("✅ Background leave berhasil diupload!", ephemeral=True)
 
-    @welcome_group.command(name="test", description="Test kirim welcome card sekarang")
+    @welcome_group.command(name="test", description="Test tampilan welcome card & embed")
     @app_commands.checks.has_permissions(administrator=True)
     async def test_welcome(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         cfg  = await db.get_guild_config(interaction.guild.id)
-        msg  = _resolve_message(cfg.get("welcome_message", "Selamat datang {member}!"), interaction.user)
+        msg  = _resolve_message(cfg.get("welcome_message", "Selamat datang {member} di {server}!"), interaction.user)
         card = await generate_welcome_card(interaction.user, cfg.get("welcome_background"), msg)
-        await interaction.followup.send("Preview welcome card:", file=card, ephemeral=True)
+        embed = discord.Embed(
+            title="👋 Preview Welcome",
+            description=f"🎉 **{interaction.user.mention}** bergabung ke **{interaction.guild.name}**!\nMember ke-**{interaction.guild.member_count}**",
+            color=0x9333ea
+        )
+        embed.set_footer(text=f"ID: {interaction.user.id} | Ini adalah preview test")
+        await interaction.followup.send(embed=embed, file=card, ephemeral=True)
+
+    @leave_group.command(name="test", description="Test tampilan leave card & embed")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def test_leave(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        cfg  = await db.get_guild_config(interaction.guild.id)
+        msg  = _resolve_message(cfg.get("leave_message", "{member} telah meninggalkan {server}."), interaction.user)
+        card = await generate_leave_card(interaction.user, cfg.get("leave_background"), msg)
+        embed = discord.Embed(
+            title="🚪 Preview Leave",
+            description=f"👋 **{interaction.user.display_name}** telah meninggalkan server.",
+            color=0xef4444
+        )
+        embed.set_footer(text=f"ID: {interaction.user.id} | Ini adalah preview test")
+        await interaction.followup.send(embed=embed, file=card, ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Welcome(bot))
