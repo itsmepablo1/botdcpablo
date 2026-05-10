@@ -3,13 +3,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 from panel.routers.auth import verify_token
 from bot import database as db
 
 router = APIRouter()
 def _s(v): return str(v) if v is not None else None
-def _i(v): return int(v) if v else None
 
 @router.get("/{guild_id}")
 async def get_autovoice(guild_id: int, payload: dict = Depends(verify_token)):
@@ -28,11 +27,12 @@ async def get_active_vcs(guild_id: int, payload: dict = Depends(verify_token)):
              "owner_id":   str(v["owner_id"])} for v in vcs]
 
 class AutoVoiceConfig(BaseModel):
-    guild_id:   str
-    channel_id: Optional[str] = None
+    guild_id:   Any
+    channel_id: Any = None
 
 @router.post("/update")
 async def update_autovoice(data: AutoVoiceConfig, payload: dict = Depends(verify_token)):
-    gid = int(data.guild_id)
-    await db.set_guild_config(gid, autovoice_channel_id=_i(data.channel_id))
+    gid = int(str(data.guild_id))
+    chid = int(str(data.channel_id)) if data.channel_id else None
+    await db.set_guild_config(gid, autovoice_channel_id=chid)
     return {"status": "ok"}
