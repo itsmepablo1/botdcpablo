@@ -187,25 +187,70 @@ class Streaming(commands.Cog):
         )
         await interaction.response.send_message("✅ Streaming notif dimatikan.", ephemeral=True)
 
-    @stream_group.command(name="test", description="Test kirim notif streaming (untuk testing)")
+    @stream_group.command(name="test", description="Test kirim notif streaming ke channel")
     @app_commands.checks.has_permissions(administrator=True)
     async def stream_test(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         cfg = await db.get_guild_config(interaction.guild.id)
-        cid = cfg.get("streaming_channel_id")
-        if not cid:
-            await interaction.response.send_message("❌ Setup dulu dengan `/streaming setup`", ephemeral=True); return
-        ch = interaction.guild.get_channel(int(cid))
-        if not ch:
-            await interaction.response.send_message("❌ Channel tidak ditemukan.", ephemeral=True); return
-        fake_info = {
-            "platform":  "YouTube",
-            "title":     "🧪 Test Stream Notification",
-            "url":       "https://youtube.com",
-            "thumbnail": None,
-        }
-        embed = self._build_stream_embed(interaction.user, fake_info)
-        await ch.send(content=f"🔴 {interaction.user.mention} sedang **LIVE!** *(test)*", embed=embed)
-        await interaction.response.send_message("✅ Test notif terkirim!", ephemeral=True)
+        cid  = cfg.get("streaming_channel_id")
+        rid  = cfg.get("streaming_role_id")
+        orid = cfg.get("streaming_on_stream_role_id")
+
+        results = []
+
+        # Test 1: Notif channel
+        if cid:
+            ch = interaction.guild.get_channel(int(cid))
+            if ch:
+                fake_info = {
+                    "platform":  "YouTube",
+                    "title":     "🧪 Test Stream Notification",
+                    "url":       "https://youtube.com",
+                    "thumbnail": None,
+                }
+                embed = self._build_stream_embed(interaction.user, fake_info)
+                await ch.send(content=f"🔴 {interaction.user.mention} sedang **LIVE!** *(test)*", embed=embed)
+                results.append(f"✅ Notif dikirim ke {ch.mention}")
+            else:
+                results.append("❌ Channel notif tidak ditemukan")
+        else:
+            results.append("⚠️ Channel notif belum diset (skip)")
+
+        # Test 2: On Stream role
+        if orid:
+            on_role = interaction.guild.get_role(int(orid))
+            if on_role:
+                try:
+                    await interaction.user.add_roles(on_role, reason="Test /testnotif")
+                    results.append(f"✅ On Stream role **{on_role.name}** ditambahkan ke kamu")
+                    # Remove setelah 5 detik
+                    import asyncio
+                    await asyncio.sleep(5)
+                    await interaction.user.remove_roles(on_role, reason="Test selesai")
+                    results.append(f"✅ On Stream role dihapus (5 detik)")
+                except discord.Forbidden:
+                    results.append("❌ Bot tidak punya izin kelola role ini")
+            else:
+                results.append("❌ On Stream role tidak ditemukan")
+        else:
+            results.append("⚠️ On Stream role belum diset (skip)")
+
+        # Test 3: Streamer role check
+        if rid:
+            streamer_role = interaction.guild.get_role(int(rid))
+            has_role = streamer_role in interaction.user.roles if streamer_role else False
+            results.append(f"{'✅' if has_role else '⚠️'} Streamer role: **{streamer_role.name if streamer_role else 'tidak ditemukan'}** "
+                          f"({'kamu punya' if has_role else 'kamu belum punya — assign dulu untuk auto-detect'})")
+        else:
+            results.append("⚠️ Streamer role belum diset")
+
+        embed = discord.Embed(
+            title="🧪 Streaming Test Results",
+            description="\n".join(results),
+            color=0x9333ea
+        )
+        embed.set_footer(text="Semua fitur streaming sudah ditest!")
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
