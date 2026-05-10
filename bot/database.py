@@ -22,6 +22,7 @@ async def init_db():
                 status_category_id        INTEGER,
                 streaming_channel_id      INTEGER,
                 streaming_role_id         INTEGER,
+                streaming_on_stream_role_id INTEGER,
                 autovoice_channel_id      INTEGER,
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP

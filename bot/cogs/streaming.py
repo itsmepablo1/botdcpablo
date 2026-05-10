@@ -18,41 +18,61 @@ class Streaming(commands.Cog):
     async def on_presence_update(self, before: discord.Member, after: discord.Member):
         guild = after.guild
         cfg   = await db.get_guild_config(guild.id)
-        notif_ch_id = cfg.get("streaming_channel_id")
-        role_id     = cfg.get("streaming_role_id")
-        if not notif_ch_id or not role_id:
+        notif_ch_id        = cfg.get("streaming_channel_id")
+        streamer_role_id   = cfg.get("streaming_role_id")
+        on_stream_role_id  = cfg.get("streaming_on_stream_role_id")
+
+        # Harus ada minimal streamer_role_id
+        if not streamer_role_id:
             return
 
-        role = guild.get_role(int(role_id))
-        if not role or role not in after.roles:
+        streamer_role = guild.get_role(int(streamer_role_id))
+        if not streamer_role or streamer_role not in after.roles:
             return
 
-        channel = guild.get_channel(int(notif_ch_id))
-        if not channel:
-            return
+        key        = (guild.id, after.id)
+        was_stream = get_streaming_activity(before)
+        is_stream  = get_streaming_activity(after)
 
-        key          = (guild.id, after.id)
-        was_stream   = get_streaming_activity(before)
-        is_stream    = get_streaming_activity(after)
-
-        # Started streaming
+        # ── Started streaming ──────────────────────────────────────────────────
         if not was_stream and is_stream:
-            if key not in self._active:
-                embed = self._build_stream_embed(after, is_stream)
-                msg   = await channel.send(
-                    content=f"🔴 {after.mention} sedang **LIVE!**",
-                    embed=embed
-                )
-                alert_id = await db.add_streamer_alert(
-                    guild.id, after.id,
-                    is_stream["platform"],
-                    is_stream["url"]
-                )
-                await db.update_streamer_alert_message(alert_id, msg.id)
-                self._active[key] = alert_id
+            # Add "On Stream" role
+            if on_stream_role_id:
+                on_role = guild.get_role(int(on_stream_role_id))
+                if on_role and on_role not in after.roles:
+                    try:
+                        await after.add_roles(on_role, reason="Member mulai streaming")
+                    except discord.Forbidden:
+                        pass
 
-        # Stopped streaming
+            # Kirim notif ke channel (kalau diset)
+            if notif_ch_id and key not in self._active:
+                channel = guild.get_channel(int(notif_ch_id))
+                if channel:
+                    embed    = self._build_stream_embed(after, is_stream)
+                    msg      = await channel.send(
+                        content=f"🔴 {after.mention} sedang **LIVE!**",
+                        embed=embed
+                    )
+                    alert_id = await db.add_streamer_alert(
+                        guild.id, after.id,
+                        is_stream["platform"],
+                        is_stream["url"]
+                    )
+                    await db.update_streamer_alert_message(alert_id, msg.id)
+                    self._active[key] = alert_id
+
+        # ── Stopped streaming ──────────────────────────────────────────────────
         elif was_stream and not is_stream:
+            # Remove "On Stream" role
+            if on_stream_role_id:
+                on_role = guild.get_role(int(on_stream_role_id))
+                if on_role and on_role in after.roles:
+                    try:
+                        await after.remove_roles(on_role, reason="Member berhenti streaming")
+                    except discord.Forbidden:
+                        pass
+
             if key in self._active:
                 await db.end_streamer_alert(guild.id, after.id)
                 del self._active[key]
@@ -86,44 +106,55 @@ class Streaming(commands.Cog):
 
     stream_group = app_commands.Group(name="streaming", description="Konfigurasi notifikasi streaming")
 
-    @stream_group.command(name="setup", description="Setup notif streaming dengan Channel ID dan Role ID")
+    @stream_group.command(name="setup", description="Setup notif streaming dengan Channel ID, Streamer Role, dan On Stream Role")
     @app_commands.describe(
-        channel_id="Channel ID untuk notifikasi (gunakan Channel ID)",
-        role_id="Role ID streamer (gunakan Role ID)"
+        channel_id="Channel ID untuk notifikasi (kosongkan jika tidak perlu notif)",
+        role_id="Role ID Streamer — role yang menandai siapa streamer",
+        on_stream_role_id="Role ID On Stream — otomatis ditambah saat live, dihapus saat offline"
     )
     @app_commands.checks.has_permissions(administrator=True)
-    async def stream_setup(self, interaction: discord.Interaction, channel_id: str, role_id: str):
+    async def stream_setup(
+        self,
+        interaction: discord.Interaction,
+        role_id: str,
+        on_stream_role_id: str,
+        channel_id: str = ""
+    ):
         try:
-            cid = int(channel_id)
-            rid = int(role_id)
+            rid  = int(role_id)
+            orid = int(on_stream_role_id)
+            cid  = int(channel_id) if channel_id else None
         except ValueError:
-            await interaction.response.send_message("❌ Channel ID dan Role ID harus angka!", ephemeral=True)
+            await interaction.response.send_message("❌ Role ID harus angka!", ephemeral=True)
             return
 
-        ch   = interaction.guild.get_channel(cid)
-        role = interaction.guild.get_role(rid)
+        streamer_role = interaction.guild.get_role(rid)
+        on_role       = interaction.guild.get_role(orid)
+        ch            = interaction.guild.get_channel(cid) if cid else None
 
-        if not ch:
+        if not streamer_role:
+            await interaction.response.send_message(f"❌ Streamer Role `{rid}` tidak ditemukan.", ephemeral=True); return
+        if not on_role:
+            await interaction.response.send_message(f"❌ On Stream Role `{orid}` tidak ditemukan.", ephemeral=True); return
+        if cid and not ch:
             await interaction.response.send_message(f"❌ Channel `{cid}` tidak ditemukan.", ephemeral=True); return
-        if not role:
-            await interaction.response.send_message(f"❌ Role `{rid}` tidak ditemukan.", ephemeral=True); return
 
         await db.set_guild_config(
             interaction.guild.id,
             streaming_channel_id=cid,
-            streaming_role_id=rid
+            streaming_role_id=rid,
+            streaming_on_stream_role_id=orid
         )
-        embed = discord.Embed(
-            title="✅ Streaming Notif Aktif!",
-            color=0x9333ea
-        )
-        embed.add_field(name="📢 Channel Notif", value=ch.mention, inline=True)
-        embed.add_field(name="🎭 Role Streamer", value=role.mention, inline=True)
+        embed = discord.Embed(title="✅ Streaming Setup Berhasil!", color=0x9333ea)
+        embed.add_field(name="🎭 Streamer Role",  value=streamer_role.mention, inline=True)
+        embed.add_field(name="🔴 On Stream Role", value=on_role.mention, inline=True)
+        embed.add_field(name="📢 Notif Channel",  value=ch.mention if ch else "Tidak diset", inline=True)
         embed.add_field(
             name="ℹ️ Cara Kerja",
             value=(
-                "Member dengan role tersebut yang mulai streaming (Twitch/YouTube/TikTok) "
-                "via Discord akan otomatis dinotifikasi."
+                f"Member dengan **{streamer_role.mention}** yang mulai streaming via Discord "
+                f"akan otomatis mendapat **{on_role.mention}**. "
+                f"Role tersebut dihapus saat mereka berhenti streaming."
             ),
             inline=False
         )
@@ -132,15 +163,18 @@ class Streaming(commands.Cog):
     @stream_group.command(name="info", description="Lihat konfigurasi streaming notif saat ini")
     @app_commands.checks.has_permissions(administrator=True)
     async def stream_info(self, interaction: discord.Interaction):
-        cfg = await db.get_guild_config(interaction.guild.id)
-        cid = cfg.get("streaming_channel_id")
-        rid = cfg.get("streaming_role_id")
+        cfg  = await db.get_guild_config(interaction.guild.id)
+        cid  = cfg.get("streaming_channel_id")
+        rid  = cfg.get("streaming_role_id")
+        orid = cfg.get("streaming_on_stream_role_id")
         embed = discord.Embed(title="📡 Streaming Config", color=0x9333ea)
-        ch   = interaction.guild.get_channel(cid) if cid else None
-        role = interaction.guild.get_role(int(rid)) if rid else None
-        embed.add_field(name="📢 Channel", value=ch.mention if ch else "Belum diset", inline=True)
-        embed.add_field(name="🎭 Role",    value=role.mention if role else "Belum diset", inline=True)
-        embed.add_field(name="🔴 Active",  value=str(len(self._active)), inline=True)
+        ch       = interaction.guild.get_channel(cid) if cid else None
+        role     = interaction.guild.get_role(int(rid))  if rid  else None
+        on_role  = interaction.guild.get_role(int(orid)) if orid else None
+        embed.add_field(name="📢 Notif Channel",  value=ch.mention      if ch      else "Belum diset", inline=True)
+        embed.add_field(name="🎭 Streamer Role",  value=role.mention     if role    else "Belum diset", inline=True)
+        embed.add_field(name="🔴 On Stream Role", value=on_role.mention  if on_role else "Belum diset", inline=True)
+        embed.add_field(name="🔴 Sedang Live",    value=str(len(self._active)), inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @stream_group.command(name="disable", description="Matikan notifikasi streaming")
