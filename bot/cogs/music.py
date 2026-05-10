@@ -130,10 +130,11 @@ class Song:
 
 class GuildState:
     def __init__(self):
-        self.queue:   deque[Song]               = deque()
-        self.current: Song | None               = None
-        self.channel: discord.abc.Messageable | None = None
-        self.loop:    bool                      = False
+        self.queue:     deque[Song]                  = deque()
+        self.current:   Song | None                  = None
+        self.channel:   discord.abc.Messageable | None = None
+        self.loop:      bool                         = False
+        self.idle_task: asyncio.Task | None          = None
 
 
 # ── Cog ───────────────────────────────────────────────────────────────────────
@@ -196,12 +197,45 @@ class Music(commands.Cog):
                 print(f"[Music] _play_next error: {ex}", flush=True)
                 state.current = None
         else:
+            # Queue habis — mulai timer idle
             state.current = None
+            asyncio.run_coroutine_threadsafe(
+                self._start_idle_timer(vc, state),
+                self.bot.loop,
+            )
 
     def _after(self, error, vc: discord.VoiceClient, state: GuildState):
         if error:
             print(f"[Music] after error: {error}", flush=True)
         self._play_next(vc, state)
+
+    async def _start_idle_timer(self, vc: discord.VoiceClient, state: GuildState):
+        """Tunggu 5 menit, lalu disconnect jika masih idle."""
+        self._cancel_idle(state)  # batalkan timer sebelumnya jika ada
+
+        async def _wait_and_leave():
+            await asyncio.sleep(300)  # 5 menit
+            if not state.current and vc and vc.is_connected():
+                await vc.disconnect()
+                if state.channel:
+                    try:
+                        await state.channel.send(
+                            embed=discord.Embed(
+                                title="👋 Auto Disconnect",
+                                description="Bot keluar dari voice karena tidak ada lagu selama **5 menit**.",
+                                color=0x6b7280,
+                            )
+                        )
+                    except Exception:
+                        pass
+
+        state.idle_task = asyncio.create_task(_wait_and_leave())
+
+    def _cancel_idle(self, state: GuildState):
+        """Batalkan timer idle jika ada."""
+        if state.idle_task and not state.idle_task.done():
+            state.idle_task.cancel()
+            state.idle_task = None
 
     # ── Commands ──────────────────────────────────────────────────────────────
 
@@ -216,6 +250,9 @@ class Music(commands.Cog):
         vc = await self._join_vc(interaction)
         if not vc:
             return
+
+        # Batalkan idle timer jika sedang berjalan
+        self._cancel_idle(state)
 
         # 2. Beri tahu user kita sedang mencari
         await interaction.followup.send(f"🔍 Mencari: **{query}**...")
