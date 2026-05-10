@@ -203,7 +203,7 @@ async function saveWelcome() {
   const gid = document.getElementById('wl-guild').value.trim();
   if (!gid) return showAlert('wl-alert', '❌ Masukkan Guild ID!', 'error');
   const body = {
-    guild_id:          parseInt(gid),
+    guild_id:          gid,
     welcome_channel_id: parseInt(document.getElementById('wl-wch').value)  || null,
     welcome_message:    document.getElementById('wl-wmsg').value.trim()     || null,
     leave_channel_id:  parseInt(document.getElementById('wl-lch').value)   || null,
@@ -309,7 +309,7 @@ async function createPanel() {
   if (!gid || !chid) return showAlert('roles-alert', '❌ Guild ID & Channel ID wajib diisi!', 'error');
   const res = await apiFetch('/api/roles/panel/create', {
     method: 'POST',
-    body: JSON.stringify({ guild_id: parseInt(gid), channel_id: parseInt(chid), title, description: desc })
+    body: JSON.stringify({ guild_id: gid, channel_id: parseInt(chid), title, description: desc })
   });
   if (res.ok) {
     const d = await res.json();
@@ -386,7 +386,7 @@ async function saveAutoVoice() {
   const chid = document.getElementById('av-chid').value.trim();
   if (!gid) return showAlert('av-alert', '❌ Masukkan Guild ID!', 'error');
   const res = await apiFetch('/api/autovoice/update', {
-    method: 'POST', body: JSON.stringify({ guild_id: parseInt(gid), channel_id: parseInt(chid) || null })
+    method: 'POST', body: JSON.stringify({ guild_id: gid, channel_id: parseInt(chid) || null })
   });
   if (res.ok) showAlert('av-alert', '✅ Config disimpan!', 'success');
   else        showAlert('av-alert', '❌ Gagal.', 'error');
@@ -396,7 +396,7 @@ async function disableAutoVoice() {
   const gid = document.getElementById('av-guild').value.trim();
   if (!gid) return showAlert('av-alert', '❌ Masukkan Guild ID!', 'error');
   await apiFetch('/api/autovoice/update', {
-    method: 'POST', body: JSON.stringify({ guild_id: parseInt(gid), channel_id: null })
+    method: 'POST', body: JSON.stringify({ guild_id: gid, channel_id: null })
   });
   document.getElementById('av-chid').value = '';
   showAlert('av-alert', '✅ Auto Voice dinonaktifkan.', 'success');
@@ -424,7 +424,7 @@ async function saveStatus() {
   const res = await apiFetch('/api/status/update', {
     method: 'POST',
     body: JSON.stringify({
-      guild_id:                  parseInt(gid),
+      guild_id:                  gid,
       status_member_channel_id:  parseInt(document.getElementById('sc-mch').value) || null,
       status_online_channel_id:  parseInt(document.getElementById('sc-och').value) || null,
     })
@@ -454,7 +454,7 @@ async function saveStreaming() {
   const res = await apiFetch('/api/streaming/update', {
     method: 'POST',
     body: JSON.stringify({
-      guild_id:   parseInt(gid),
+      guild_id:   gid,
       channel_id: parseInt(document.getElementById('st-chid').value) || null,
       role_id:    parseInt(document.getElementById('st-rid').value)  || null,
     })
@@ -467,7 +467,7 @@ async function disableStreaming() {
   const gid = document.getElementById('st-guild').value.trim();
   if (!gid) return showAlert('st-alert', '❌ Masukkan Guild ID!', 'error');
   await apiFetch('/api/streaming/update', {
-    method: 'POST', body: JSON.stringify({ guild_id: parseInt(gid), channel_id: null, role_id: null })
+    method: 'POST', body: JSON.stringify({ guild_id: gid, channel_id: null, role_id: null })
   });
   document.getElementById('st-chid').value = '';
   document.getElementById('st-rid').value  = '';
