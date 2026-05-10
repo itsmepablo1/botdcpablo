@@ -36,12 +36,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   const meData = await me.json();
   document.getElementById('sidebarUser').textContent = meData.username || 'Admin';
 
+  // Restore saved Guild ID ke semua input
+  restoreGuildIds();
+
   setupNav();
   setupMobileMenu();
   setupLogout();
   loadDashboard();
   checkBotStatus();
 });
+
+// ── Guild ID Persistence ──────────────────────────────────────────────────────
+
+const GUILD_ID_FIELDS = {
+  welcome:   'wl-guild',
+  roles:     'roles-guild',
+  autovoice: 'av-guild',
+  status:    'sc-guild',
+  streaming: 'st-guild',
+};
+
+function saveGuildId(page, value) {
+  if (value) localStorage.setItem(`gid_${page}`, value);
+}
+
+function restoreGuildIds() {
+  for (const [page, fieldId] of Object.entries(GUILD_ID_FIELDS)) {
+    const saved = localStorage.getItem(`gid_${page}`);
+    const el = document.getElementById(fieldId);
+    if (el && saved) el.value = saved;
+  }
+}
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
@@ -78,6 +103,22 @@ function navigateTo(page) {
   const [title, sub] = PAGE_TITLES[page] || [page, ''];
   document.getElementById('pageTitle').textContent = title;
   document.getElementById('pageSub').textContent   = sub;
+
+  // Auto-load kalau guild ID sudah tersimpan
+  const fieldId = GUILD_ID_FIELDS[page];
+  if (fieldId) {
+    const saved = localStorage.getItem(`gid_${page}`);
+    const el = document.getElementById(fieldId);
+    if (el && saved) {
+      el.value = saved;
+      // Auto-load per halaman
+      if (page === 'welcome')   loadWelcome();
+      if (page === 'roles')     loadRoles();
+      if (page === 'autovoice') loadAutoVoice();
+      if (page === 'status')    loadStatus();
+      if (page === 'streaming') loadStreaming();
+    }
+  }
 }
 
 // ── Mobile Menu ───────────────────────────────────────────────────────────────
@@ -148,6 +189,7 @@ async function loadDashboard() {
 async function loadWelcome() {
   const gid = document.getElementById('wl-guild').value.trim();
   if (!gid) return showAlert('wl-alert', '❌ Masukkan Guild ID!', 'error');
+  saveGuildId('welcome', gid);
   const res  = await apiFetch(`/api/welcome/${gid}`);
   const data = await res.json();
   document.getElementById('wl-wch').value  = data.welcome_channel_id  || '';
@@ -179,6 +221,7 @@ async function saveWelcome() {
 async function loadRoles() {
   const gid = document.getElementById('roles-guild').value.trim();
   if (!gid) return showAlert('roles-alert', '❌ Masukkan Guild ID!', 'error');
+  saveGuildId('roles', gid);
   const res    = await apiFetch(`/api/roles/${gid}`);
   const panels = await res.json();
   renderRolePanels(panels);
@@ -302,6 +345,7 @@ async function addGroup(panelId) {
 async function loadAutoVoice() {
   const gid = document.getElementById('av-guild').value.trim();
   if (!gid) return showAlert('av-alert', '❌ Masukkan Guild ID!', 'error');
+  saveGuildId('autovoice', gid);
   const res  = await apiFetch(`/api/autovoice/${gid}`);
   const data = await res.json();
   document.getElementById('av-chid').value = data.autovoice_channel_id || '';
@@ -366,6 +410,7 @@ async function disableAutoVoice() {
 async function loadStatus() {
   const gid = document.getElementById('sc-guild').value.trim();
   if (!gid) return showAlert('sc-alert', '❌ Masukkan Guild ID!', 'error');
+  saveGuildId('status', gid);
   const res  = await apiFetch(`/api/status/${gid}`);
   const data = await res.json();
   document.getElementById('sc-mch').value = data.status_member_channel_id || '';
@@ -395,6 +440,7 @@ async function saveStatus() {
 async function loadStreaming() {
   const gid = document.getElementById('st-guild').value.trim();
   if (!gid) return showAlert('st-alert', '❌ Masukkan Guild ID!', 'error');
+  saveGuildId('streaming', gid);
   const res  = await apiFetch(`/api/streaming/${gid}`);
   const data = await res.json();
   document.getElementById('st-chid').value = data.streaming_channel_id || '';
