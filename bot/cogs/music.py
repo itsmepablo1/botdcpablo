@@ -139,6 +139,13 @@ class GuildState:
 
 # ── Cog ───────────────────────────────────────────────────────────────────────
 
+async def _delete_after(msg, delay: int = 10):
+    await asyncio.sleep(delay)
+    try:
+        await msg.delete()
+    except Exception:
+        pass
+
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot    = bot
@@ -149,12 +156,24 @@ class Music(commands.Cog):
             self.states[gid] = GuildState()
         return self.states[gid]
 
+    async def _temp(self, interaction: discord.Interaction, content: str, delay: int = 10):
+        """Kirim pesan biasa (bukan ephemeral) lalu hapus otomatis setelah `delay` detik."""
+        try:
+            if interaction.response.is_done():
+                msg = await interaction.followup.send(content, wait=True)
+            else:
+                await interaction.response.send_message(content)
+                msg = await interaction.original_response()
+            asyncio.create_task(_delete_after(msg, delay))
+        except Exception:
+            pass
+
     # ── internal ──────────────────────────────────────────────────────────────
 
     async def _join_vc(self, interaction: discord.Interaction) -> discord.VoiceClient | None:
         """Join atau pindah ke voice channel user."""
         if not interaction.user.voice or not interaction.user.voice.channel:
-            await interaction.followup.send("❌ Kamu harus masuk voice channel dulu!", ephemeral=True)
+            await self._temp(interaction, "❌ Kamu harus masuk voice channel dulu!")
             return None
         target = interaction.user.voice.channel
         vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
@@ -167,7 +186,7 @@ class Music(commands.Cog):
             return vc
         except Exception as e:
             print(f"[Music] join error: {e}", flush=True)
-            await interaction.followup.send(f"❌ Gagal join voice: `{e}`", ephemeral=True)
+            await self._temp(interaction, f"❌ Gagal join voice: `{e}`")
             return None
 
     def _play_next(self, vc: discord.VoiceClient, state: GuildState):
@@ -261,16 +280,14 @@ class Music(commands.Cog):
         try:
             song = await fetch_song(query, interaction.user, timeout=30)
         except asyncio.TimeoutError:
-            await interaction.followup.send("⏱️ Timeout! YouTube tidak merespons. Coba lagi.", ephemeral=True)
+            await self._temp(interaction, "⏱️ Timeout! YouTube tidak merespons. Coba lagi.")
             return
 
         if not song:
-            await interaction.followup.send(
+            await self._temp(interaction,
                 "❌ Lagu tidak ditemukan. Coba:\n"
                 "• Gunakan URL langsung: `https://youtu.be/...`\n"
-                "• Ganti kata kunci pencarian",
-                ephemeral=True
-            )
+                "• Ganti kata kunci pencarian")
             return
 
         # 4. Play atau tambah ke queue
@@ -288,13 +305,13 @@ class Music(commands.Cog):
             except Exception as e:
                 print(f"[Music] play error: {e}", flush=True)
                 state.current = None
-                await interaction.followup.send(f"❌ Gagal memutar: `{e}`", ephemeral=True)
+                await self._temp(interaction, f"❌ Gagal memutar: `{e}`")
 
     @app_commands.command(name="skip", description="Skip lagu sekarang")
     async def skip(self, interaction: discord.Interaction):
         vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
         if not vc or not vc.is_playing():
-            await interaction.response.send_message("❌ Tidak ada lagu.", ephemeral=True)
+            await self._temp(interaction, "❌ Tidak ada lagu yang diputar.")
             return
         vc.stop()
         await interaction.response.send_message("⏭ Skip!")
@@ -314,7 +331,7 @@ class Music(commands.Cog):
     async def pause(self, interaction: discord.Interaction):
         vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
         if not vc or not vc.is_playing():
-            await interaction.response.send_message("❌ Tidak ada yang diputar.", ephemeral=True)
+            await self._temp(interaction, "❌ Tidak ada yang diputar.")
             return
         vc.pause()
         await interaction.response.send_message("⏸ Pause.")
@@ -323,7 +340,7 @@ class Music(commands.Cog):
     async def resume(self, interaction: discord.Interaction):
         vc: discord.VoiceClient = interaction.guild.voice_client  # type: ignore
         if not vc or not vc.is_paused():
-            await interaction.response.send_message("❌ Tidak dalam keadaan pause.", ephemeral=True)
+            await self._temp(interaction, "❌ Tidak dalam keadaan pause.")
             return
         vc.resume()
         await interaction.response.send_message("▶ Lanjut.")
@@ -349,7 +366,7 @@ class Music(commands.Cog):
     async def nowplaying(self, interaction: discord.Interaction):
         state = self._state(interaction.guild.id)
         if not state.current:
-            await interaction.response.send_message("❌ Tidak ada lagu.", ephemeral=True)
+            await self._temp(interaction, "❌ Tidak ada lagu yang sedang diputar.")
             return
         await interaction.response.send_message(embed=state.current.embed())
 
@@ -372,7 +389,7 @@ class Music(commands.Cog):
         import random
         state = self._state(interaction.guild.id)
         if not state.queue:
-            await interaction.response.send_message("❌ Antrian kosong.", ephemeral=True)
+            await self._temp(interaction, "❌ Antrian kosong.")
             return
         q = list(state.queue)
         random.shuffle(q)
