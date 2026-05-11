@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 from bot import database as db
-from panel.routers.auth import get_current_guild_id
+from panel.routers.auth import verify_token
 
 router = APIRouter()
 
@@ -110,14 +110,14 @@ async def _resolve_channel_info(platform: str, url: str) -> tuple[str, str]:
 
 @router.get("/{guild_id}")
 async def list_streamers(guild_id: str, platform: str | None = None,
-                         _=Depends(get_current_guild_id)):
+                         _=Depends(verify_token)):
     rows = await db.get_tracked_streamers(int(guild_id), platform or None)
     return {"streamers": rows}
 
 
 @router.post("/{guild_id}")
 async def add_streamer(guild_id: str, data: AddStreamerRequest,
-                       _=Depends(get_current_guild_id)):
+                       _=Depends(verify_token)):
     gid = int(guild_id)
 
     # Auto-detect platform jika perlu
@@ -168,7 +168,7 @@ async def add_streamer(guild_id: str, data: AddStreamerRequest,
 @router.patch("/{guild_id}/{streamer_id}")
 async def update_streamer(guild_id: str, streamer_id: int,
                           data: UpdateStreamerRequest,
-                          _=Depends(get_current_guild_id)):
+                          _=Depends(verify_token)):
     gid = int(guild_id)
     updates = {}
     if data.status is not None:
@@ -197,6 +197,6 @@ async def update_streamer(guild_id: str, streamer_id: int,
 
 @router.delete("/{guild_id}/{streamer_id}")
 async def delete_streamer(guild_id: str, streamer_id: int,
-                           _=Depends(get_current_guild_id)):
+                           _=Depends(verify_token)):
     await db.delete_tracked_streamer(streamer_id, int(guild_id))
     return {"ok": True}
