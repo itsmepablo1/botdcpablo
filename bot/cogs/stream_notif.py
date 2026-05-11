@@ -15,7 +15,9 @@ import re
 import sys
 import os
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+WIB = timezone(timedelta(hours=7))
 
 import discord
 from discord.ext import commands, tasks
@@ -178,9 +180,10 @@ def make_notif_embed(platform: str, content: dict, message: str, is_live: bool =
     e.set_author(name=f"{icon} • {ch_name}")
     if content.get("thumbnail"):
         e.set_image(url=content["thumbnail"])
+    now_wib = datetime.now(WIB)
     label = "LIVE" if is_live else "Video Baru"
-    e.set_footer(text=f"{platform.title()} {label} • Notifikasi Otomatis")
-    e.timestamp = datetime.utcnow()
+    e.set_footer(text=f"{platform.title()} {label} • {now_wib.strftime('%d/%m/%Y %H:%M')} WIB")
+    e.timestamp = now_wib
     return e
 
 
