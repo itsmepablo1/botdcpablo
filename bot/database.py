@@ -76,6 +76,24 @@ async def init_db():
                 started_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 ended_at    TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS tracked_streamers (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id            INTEGER NOT NULL,
+                platform            TEXT NOT NULL,
+                channel_url         TEXT NOT NULL,
+                platform_channel_id TEXT,
+                channel_name        TEXT,
+                channel_thumb       TEXT,
+                discord_channel_id  INTEGER NOT NULL,
+                ping_role_id        INTEGER,
+                status              TEXT DEFAULT 'running',
+                content_type        TEXT DEFAULT 'all',
+                video_message       TEXT DEFAULT '{channel} just posted a new video!',
+                live_message        TEXT DEFAULT '{channel} is live!',
+                last_video_id       TEXT,
+                created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         await db.commit()
 
@@ -259,3 +277,73 @@ async def get_active_streamer_alert(guild_id: int, user_id: int) -> dict:
         ) as cur:
             row = await cur.fetchone()
             return dict(row) if row else {}
+
+# ── Tracked Streamers (YouTube & TikTok) ─────────────────────────────────────
+
+async def add_tracked_streamer(
+    guild_id: int, platform: str, channel_url: str,
+    platform_channel_id: str, channel_name: str,
+    discord_channel_id: int, ping_role_id: int | None,
+    content_type: str = "all",
+    video_message: str = "{channel} just posted a new video!",
+    live_message: str  = "{channel} is live!",
+) -> int:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cur = await db.execute(
+            """INSERT INTO tracked_streamers
+               (guild_id, platform, channel_url, platform_channel_id, channel_name,
+                discord_channel_id, ping_role_id, content_type, video_message, live_message)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (guild_id, platform, channel_url, platform_channel_id, channel_name,
+             discord_channel_id, ping_role_id, content_type, video_message, live_message)
+        )
+        await db.commit()
+        return cur.lastrowid
+
+async def get_tracked_streamers(guild_id: int, platform: str | None = None) -> list:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        if platform:
+            async with db.execute(
+                "SELECT * FROM tracked_streamers WHERE guild_id=? AND platform=? ORDER BY id",
+                (guild_id, platform)
+            ) as cur:
+                return [dict(r) for r in await cur.fetchall()]
+        else:
+            async with db.execute(
+                "SELECT * FROM tracked_streamers WHERE guild_id=? ORDER BY platform, id",
+                (guild_id,)
+            ) as cur:
+                return [dict(r) for r in await cur.fetchall()]
+
+async def get_all_tracked_streamers() -> list:
+    """Untuk background task — ambil semua row."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM tracked_streamers ORDER BY id") as cur:
+            return [dict(r) for r in await cur.fetchall()]
+
+async def update_tracked_streamer(streamer_id: int, **kwargs) -> None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        set_clause = ", ".join(f"{k} = ?" for k in kwargs)
+        vals = list(kwargs.values()) + [streamer_id]
+        await db.execute(
+            f"UPDATE tracked_streamers SET {set_clause} WHERE id = ?", vals
+        )
+        await db.commit()
+
+async def update_streamer_last_video(streamer_id: int, video_id: str) -> None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE tracked_streamers SET last_video_id = ? WHERE id = ?",
+            (video_id, streamer_id)
+        )
+        await db.commit()
+
+async def delete_tracked_streamer(streamer_id: int, guild_id: int) -> None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "DELETE FROM tracked_streamers WHERE id = ? AND guild_id = ?",
+            (streamer_id, guild_id)
+        )
+        await db.commit()

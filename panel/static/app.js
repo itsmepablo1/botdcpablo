@@ -572,3 +572,204 @@ function escHtml(str) {
   if (!str) return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── Streamer Tracker ──────────────────────────────────────────────────────────
+
+let _streamerData     = [];
+let _streamerPlatform = 'youtube';
+let _editStreamerId   = null;
+
+function switchStreamerTab(platform) {
+  _streamerPlatform = platform;
+  document.querySelectorAll('.streamer-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + platform).classList.add('active');
+  renderStreamerTable();
+}
+
+async function loadStreamers() {
+  const guildId = document.getElementById('st-guild').value.trim();
+  if (!guildId) return alert('Masukkan Guild ID dulu!');
+  const tbody = document.getElementById('streamer-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>';
+  try {
+    const res = await apiFetch('/api/streamers/' + guildId);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    _streamerData = data.streamers || [];
+    updateStreamerBadges();
+    renderStreamerTable();
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:#ef4444">Error: ' + escHtml(e.message) + '</td></tr>';
+  }
+}
+
+function updateStreamerBadges() {
+  const yt = _streamerData.filter(s => s.platform === 'youtube').length;
+  const tt = _streamerData.filter(s => s.platform === 'tiktok').length;
+  document.getElementById('yt-count').textContent = yt + '/30';
+  document.getElementById('tt-count').textContent = tt + '/10';
+}
+
+function renderStreamerTable() {
+  const search = (document.getElementById('streamer-search') ? document.getElementById('streamer-search').value : '').toLowerCase();
+  const rows = _streamerData.filter(function(s) {
+    return s.platform === _streamerPlatform &&
+      (!search || (s.channel_name||'').toLowerCase().includes(search) || (s.channel_url||'').toLowerCase().includes(search));
+  });
+  const empty = document.getElementById('streamer-empty');
+  const wrap  = document.getElementById('streamer-table-wrap');
+  const tbody = document.getElementById('streamer-tbody');
+  if (!tbody) return;
+  if (rows.length === 0) {
+    if (empty) empty.style.display = 'block';
+    if (wrap)  wrap.style.display  = 'none';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (wrap)  wrap.style.display  = '';
+  const platLabel = _streamerPlatform === 'youtube'
+    ? '<span style="color:#FF0000">&#9654; YouTube</span>'
+    : '<span style="color:#fe2c55">&#127925; TikTok</span>';
+  tbody.innerHTML = rows.map(function(s) {
+    return '<tr>' +
+      '<td>' + platLabel + '</td>' +
+      '<td><a href="' + escHtml(s.channel_url) + '" target="_blank" style="color:var(--accent)">' + escHtml(s.channel_name || s.channel_url) + '</a></td>' +
+      '<td><code>' + (s.discord_channel_id || '&#8212;') + '</code></td>' +
+      '<td><code>' + (s.ping_role_id || '&#8212;') + '</code></td>' +
+      '<td>' +
+        '<label class="toggle-switch">' +
+          '<input type="checkbox" ' + (s.status === 'running' ? 'checked' : '') + ' onchange="toggleStreamerStatus(' + s.id + ', this.checked)"/>' +
+          '<span class="toggle-track"></span>' +
+        '</label>' +
+        '<span style="font-size:11px;color:' + (s.status==='running'?'#22c55e':'#6b7280') + ';margin-left:4px">' + (s.status === 'running' ? 'Running' : 'Paused') + '</span>' +
+      '</td>' +
+      '<td>' +
+        '<button class="btn-sm" onclick="openEditStreamerModal(' + s.id + ')" title="Edit">&#9998;</button> ' +
+        '<button class="btn-sm" style="color:#ef4444" onclick="deleteStreamer(' + s.id + ')" title="Hapus">&#128465;</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function filterStreamerList() { renderStreamerTable(); }
+
+function openAddStreamerModal() {
+  _editStreamerId = null;
+  document.getElementById('streamerModalTitle').textContent = 'Add Channel';
+  document.getElementById('sm-save-btn').textContent = '+ Add Channel';
+  document.getElementById('sm-url').value = '';
+  document.getElementById('sm-url').disabled = false;
+  document.getElementById('sm-platform').value = _streamerPlatform;
+  document.getElementById('sm-platform').disabled = false;
+  document.getElementById('sm-discord-ch').value = '';
+  document.getElementById('sm-ping-role').value = '';
+  document.getElementById('sm-status').value = 'running';
+  document.getElementById('sm-content-type').value = 'all';
+  document.getElementById('sm-video-msg').value = '{channel} just posted a new video!';
+  document.getElementById('sm-live-msg').value = '{channel} is live!';
+  document.getElementById('streamerModal').style.display = 'flex';
+}
+
+function openEditStreamerModal(id) {
+  var s = _streamerData.find(function(r){ return r.id === id; });
+  if (!s) return;
+  _editStreamerId = id;
+  document.getElementById('streamerModalTitle').textContent = 'Edit Channel';
+  document.getElementById('sm-save-btn').textContent = 'Simpan';
+  document.getElementById('sm-url').value = s.channel_url || '';
+  document.getElementById('sm-url').disabled = true;
+  document.getElementById('sm-platform').value = s.platform;
+  document.getElementById('sm-platform').disabled = true;
+  document.getElementById('sm-discord-ch').value = s.discord_channel_id || '';
+  document.getElementById('sm-ping-role').value = s.ping_role_id || '';
+  document.getElementById('sm-status').value = s.status || 'running';
+  document.getElementById('sm-content-type').value = s.content_type || 'all';
+  document.getElementById('sm-video-msg').value = s.video_message || '{channel} just posted a new video!';
+  document.getElementById('sm-live-msg').value = s.live_message || '{channel} is live!';
+  document.getElementById('streamerModal').style.display = 'flex';
+}
+
+function closeStreamerModal() {
+  document.getElementById('streamerModal').style.display = 'none';
+  _editStreamerId = null;
+}
+
+async function saveStreamerChannel() {
+  const guildId = document.getElementById('st-guild').value.trim();
+  if (!guildId) return alert('Load guild dulu!');
+  const btn = document.getElementById('sm-save-btn');
+  btn.disabled = true;
+  btn.textContent = _editStreamerId ? 'Menyimpan...' : 'Menambahkan...';
+  const payload = {
+    platform:           document.getElementById('sm-platform').value,
+    channel_url:        document.getElementById('sm-url').value.trim(),
+    discord_channel_id: document.getElementById('sm-discord-ch').value.trim(),
+    ping_role_id:       document.getElementById('sm-ping-role').value.trim() || null,
+    status:             document.getElementById('sm-status').value,
+    content_type:       document.getElementById('sm-content-type').value,
+    video_message:      document.getElementById('sm-video-msg').value.trim(),
+    live_message:       document.getElementById('sm-live-msg').value.trim(),
+  };
+  try {
+    var res;
+    if (_editStreamerId) {
+      res = await apiFetch('/api/streamers/' + guildId + '/' + _editStreamerId, { method: 'PATCH', body: JSON.stringify(payload) });
+    } else {
+      if (!payload.channel_url) throw new Error('Channel URL wajib diisi!');
+      res = await apiFetch('/api/streamers/' + guildId, { method: 'POST', body: JSON.stringify(payload) });
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(function(){ return {detail: 'Unknown error'}; });
+      throw new Error(err.detail || JSON.stringify(err));
+    }
+    closeStreamerModal();
+    await loadStreamers();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = _editStreamerId ? 'Simpan' : '+ Add Channel';
+  }
+}
+
+async function toggleStreamerStatus(id, isRunning) {
+  const guildId = document.getElementById('st-guild').value.trim();
+  if (!guildId) return;
+  await apiFetch('/api/streamers/' + guildId + '/' + id, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: isRunning ? 'running' : 'paused' })
+  });
+  var row = _streamerData.find(function(s){ return s.id === id; });
+  if (row) row.status = isRunning ? 'running' : 'paused';
+  renderStreamerTable();
+}
+
+async function deleteStreamer(id) {
+  if (!confirm('Hapus tracked channel ini?')) return;
+  const guildId = document.getElementById('st-guild').value.trim();
+  if (!guildId) return;
+  try {
+    const res = await apiFetch('/api/streamers/' + guildId + '/' + id, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    _streamerData = _streamerData.filter(function(s){ return s.id !== id; });
+    updateStreamerBadges();
+    renderStreamerTable();
+  } catch(e) { alert('Gagal hapus: ' + e.message); }
+}
+
+// Auto-detect platform dari URL
+(function() {
+  function bindUrlDetect() {
+    var urlInput   = document.getElementById('sm-url');
+    var platSelect = document.getElementById('sm-platform');
+    if (urlInput && platSelect) {
+      urlInput.addEventListener('input', function() {
+        var url = urlInput.value.toLowerCase();
+        if (url.includes('tiktok.com'))                       platSelect.value = 'tiktok';
+        else if (url.includes('youtube') || url.includes('youtu.be')) platSelect.value = 'youtube';
+      });
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindUrlDetect);
+  else bindUrlDetect();
+})();

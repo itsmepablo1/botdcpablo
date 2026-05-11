@@ -38,6 +38,9 @@
       <a href="#" class="nav-item" data-page="streaming">
         <span class="nav-icon">🔴</span><span>Streaming Notif</span>
       </a>
+      <a href="#" class="nav-item" data-page="streamers">
+        <span class="nav-icon">📡</span><span>Streamer Tracker</span>
+      </a>
     </nav>
 
     <div class="sidebar-footer">
@@ -436,9 +439,133 @@
         </div>
       </div>
 
+      <!-- ── STREAMERS ── -->
+      <div class="page" id="page-streamers">
+        <!-- Platform Tabs -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.07)">
+            <button class="streamer-tab active" id="tab-youtube" onclick="switchStreamerTab('youtube')">
+              <span>▶</span> YouTube
+              <span class="badge" id="yt-count">0/30</span>
+            </button>
+            <button class="streamer-tab" id="tab-tiktok" onclick="switchStreamerTab('tiktok')">
+              <span>🎵</span> TikTok
+              <span class="badge" id="tt-count">0/10</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Search + Add -->
+        <div style="display:flex;gap:12px;align-items:center;margin:16px 0">
+          <input type="text" id="streamer-search" placeholder="🔍 Cari channel..."
+            style="flex:1;max-width:320px" oninput="filterStreamerList()"/>
+          <button class="btn-primary" onclick="openAddStreamerModal()">
+            ➕ Add Channel
+          </button>
+        </div>
+
+        <!-- Guild ID input -->
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
+          <input type="text" id="st-guild" placeholder="Guild ID" style="max-width:200px"/>
+          <button class="btn-sm" onclick="loadStreamers()">📥 Load</button>
+        </div>
+
+        <!-- Channel List -->
+        <div class="card">
+          <div id="streamer-empty" style="display:none;text-align:center;padding:60px 0;color:var(--text3)">
+            <div style="font-size:48px;margin-bottom:12px">📡</div>
+            <div style="font-size:16px;font-weight:600;color:var(--text2)">Belum ada channel</div>
+            <div style="font-size:13px;margin-top:8px">Klik <b>+ Add Channel</b> untuk mulai tracking</div>
+          </div>
+          <div class="table-wrap" id="streamer-table-wrap">
+            <table class="table" id="streamer-table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>Channel</th>
+                  <th>Discord Ch</th>
+                  <th>Ping Role</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="streamer-tbody">
+                <tr><td colspan="6" class="text-center text-muted">Load guild dulu...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /page-container -->
+
+  <!-- ── MODAL: Add Streamer Channel ── -->
+  <div class="modal-overlay" id="streamerModal" style="display:none">
+    <div class="modal-box" style="max-width:560px">
+      <div class="modal-header">
+        <h3 class="modal-title" id="streamerModalTitle">➕ Add Channel</h3>
+        <button class="modal-close" onclick="closeStreamerModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Channel URL <span class="req">*</span></label>
+            <input type="text" id="sm-url" placeholder="https://youtube.com/@channel atau https://tiktok.com/@user"/>
+          </div>
+          <div class="form-group">
+            <label>Platform</label>
+            <select id="sm-platform">
+              <option value="youtube">▶ YouTube</option>
+              <option value="tiktok">🎵 TikTok</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Discord Channel <span class="req">*</span></label>
+            <input type="text" id="sm-discord-ch" placeholder="Channel ID Discord"/>
+          </div>
+          <div class="form-group">
+            <label>Ping Role <span style="color:var(--text3);font-size:11px">(opsional)</span></label>
+            <input type="text" id="sm-ping-role" placeholder="Role ID (kosongkan jika tidak ada)"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Status</label>
+            <select id="sm-status">
+              <option value="running">▶ Running</option>
+              <option value="paused">⏸ Paused</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Content Type</label>
+            <select id="sm-content-type">
+              <option value="all">Videos + Livestreams</option>
+              <option value="video">Video Only</option>
+              <option value="live">Livestream Only</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Video Message</label>
+          <input type="text" id="sm-video-msg" value="{channel} just posted a new video!"/>
+          <small style="color:var(--text3)">Variabel: {channel} {title} {url}</small>
+        </div>
+        <div class="form-group">
+          <label>Live Message</label>
+          <input type="text" id="sm-live-msg" value="{channel} is live!"/>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-sm" onclick="closeStreamerModal()">Cancel</button>
+        <button class="btn-primary" id="sm-save-btn" onclick="saveStreamerChannel()">➕ Add Channel</button>
+      </div>
+    </div>
+  </div>
+
   </main>
 
-  <script src="/static/app.js?v=5"></script>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>
