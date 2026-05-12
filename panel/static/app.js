@@ -820,7 +820,19 @@ async function saveSchedule() {
       daily_restart_enabled: enabledEl.checked,
       daily_restart_time:    timeEl.value || '04:00'
     };
-    const res  = await apiFetch('/api/schedule', { method: 'POST', body: JSON.stringify(payload) });
+    const res = await apiFetch('/api/schedule', { method: 'POST', body: JSON.stringify(payload) });
+
+    // Handle non-OK HTTP responses
+    if (!res.ok) {
+      let errMsg = 'HTTP ' + res.status;
+      try {
+        const errData = await res.json();
+        errMsg = errData.detail || errData.error || errMsg;
+      } catch(_) {}
+      alert('Gagal simpan jadwal: ' + errMsg);
+      return;
+    }
+
     const data = await res.json();
     if (data.ok) {
       _updateSchedUI(payload.daily_restart_enabled, payload.daily_restart_time);
@@ -831,7 +843,12 @@ async function saveSchedule() {
         alertEl.style.display = 'block';
         setTimeout(function() { alertEl.style.display = 'none'; }, 3000);
       }
-    } else { alert('Gagal: ' + (data.error || 'Unknown')); }
-  } catch(e) { alert('Error: ' + e.message); }
-  finally { _schedSaving = false; }
+    } else {
+      alert('Gagal: ' + (data.error || 'Cek log panel'));
+    }
+  } catch(e) {
+    alert('Error koneksi: ' + e.message);
+  } finally {
+    _schedSaving = false;
+  }
 }
