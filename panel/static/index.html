@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8"/>
@@ -12,7 +12,7 @@
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <div class="logo-icon">🤖</div>
+      <div class="logo-icon">ðŸ¤–</div>
       <div>
         <div class="logo-title">Bot Panel</div>
         <div class="logo-sub">Discord Control</div>
@@ -21,37 +21,37 @@
 
     <nav class="nav">
       <a href="#" class="nav-item active" data-page="dashboard">
-        <span class="nav-icon">📊</span><span>Dashboard</span>
+        <span class="nav-icon">ðŸ“Š</span><span>Dashboard</span>
       </a>
       <a href="#" class="nav-item" data-page="welcome">
-        <span class="nav-icon">👋</span><span>Welcome / Leave</span>
+        <span class="nav-icon">ðŸ‘‹</span><span>Welcome / Leave</span>
       </a>
       <a href="#" class="nav-item" data-page="roles">
-        <span class="nav-icon">🎭</span><span>Role Selector</span>
+        <span class="nav-icon">ðŸŽ­</span><span>Role Selector</span>
       </a>
       <a href="#" class="nav-item" data-page="autovoice">
-        <span class="nav-icon">🔊</span><span>Auto Voice</span>
+        <span class="nav-icon">ðŸ”Š</span><span>Auto Voice</span>
       </a>
       <a href="#" class="nav-item" data-page="status">
-        <span class="nav-icon">📈</span><span>Status Channel</span>
+        <span class="nav-icon">ðŸ“ˆ</span><span>Status Channel</span>
       </a>
       <a href="#" class="nav-item" data-page="streaming">
-        <span class="nav-icon">🔴</span><span>Streaming Notif</span>
+        <span class="nav-icon">ðŸ”´</span><span>Streaming Notif</span>
       </a>
       <a href="#" class="nav-item" data-page="streamers">
-        <span class="nav-icon">📡</span><span>Streamer Tracker</span>
+        <span class="nav-icon">ðŸ“¡</span><span>Streamer Tracker</span>
       </a>
     </nav>
 
     <div class="sidebar-footer">
       <div class="user-info">
-        <div class="user-avatar">👤</div>
+        <div class="user-avatar">ðŸ‘¤</div>
         <div>
           <div class="user-name" id="sidebarUser">Admin</div>
           <div class="user-role">Administrator</div>
         </div>
       </div>
-      <button class="btn-logout" id="logoutBtn" title="Logout">⏏</button>
+      <button class="btn-logout" id="logoutBtn" title="Logout">â</button>
     </div>
   </aside>
 
@@ -60,7 +60,7 @@
     <!-- Top Bar -->
     <header class="topbar">
       <div class="topbar-left">
-        <button class="btn-menu" id="menuBtn">☰</button>
+        <button class="btn-menu" id="menuBtn">â˜°</button>
         <div>
           <h1 class="page-title" id="pageTitle">Dashboard</h1>
           <p class="page-sub" id="pageSub">Overview semua fitur bot</p>
@@ -75,34 +75,34 @@
     <!-- Page Container -->
     <div class="page-container" id="pageContainer">
 
-      <!-- ── DASHBOARD ── -->
+      <!-- â”€â”€ DASHBOARD â”€â”€ -->
       <div class="page active" id="page-dashboard">
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-icon" style="background:linear-gradient(135deg,#7c3aed,#4f46e5)">🖥️</div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#7c3aed,#4f46e5)">ðŸ–¥ï¸</div>
             <div class="stat-body">
-              <div class="stat-value" id="st-configs">—</div>
+              <div class="stat-value" id="st-configs">â€”</div>
               <div class="stat-label">Server Terkonfigurasi</div>
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon" style="background:linear-gradient(135deg,#059669,#10b981)">🎭</div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#059669,#10b981)">ðŸŽ­</div>
             <div class="stat-body">
-              <div class="stat-value" id="st-panels">—</div>
+              <div class="stat-value" id="st-panels">â€”</div>
               <div class="stat-label">Role Panel Aktif</div>
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon" style="background:linear-gradient(135deg,#d97706,#f59e0b)">🔊</div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#d97706,#f59e0b)">ðŸ”Š</div>
             <div class="stat-body">
-              <div class="stat-value" id="st-vcs">—</div>
+              <div class="stat-value" id="st-vcs">â€”</div>
               <div class="stat-label">Auto VC Aktif</div>
             </div>
           </div>
           <div class="stat-card">
-            <div class="stat-icon" style="background:linear-gradient(135deg,#dc2626,#ef4444)">🔴</div>
+            <div class="stat-icon" style="background:linear-gradient(135deg,#dc2626,#ef4444)">ðŸ”´</div>
             <div class="stat-body">
-              <div class="stat-value" id="st-live">—</div>
+              <div class="stat-value" id="st-live">â€”</div>
               <div class="stat-label">Sedang Live</div>
             </div>
           </div>
@@ -110,8 +110,8 @@
 
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">📋 Daftar Server</h2>
-            <button class="btn-sm" onclick="loadDashboard()">🔄 Refresh</button>
+            <h2 class="card-title">ðŸ“‹ Daftar Server</h2>
+            <button class="btn-sm" onclick="loadDashboard()">ðŸ”„ Refresh</button>
           </div>
           <div class="table-wrap">
             <table class="table" id="guildsTable">
@@ -133,30 +133,30 @@
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title">⚡ Quick Commands</h2></div>
+          <div class="card-header"><h2 class="card-title">âš¡ Quick Commands</h2></div>
           <div class="commands-grid">
             <div class="cmd-card">
-              <div class="cmd-title">🎵 Music</div>
+              <div class="cmd-title">ðŸŽµ Music</div>
               <code>/play [query]</code><br><code>/skip</code> <code>/stop</code> <code>/queue</code>
             </div>
             <div class="cmd-card">
-              <div class="cmd-title">👋 Welcome</div>
+              <div class="cmd-title">ðŸ‘‹ Welcome</div>
               <code>/welcome channel [id]</code><br><code>/welcome background</code>
             </div>
             <div class="cmd-card">
-              <div class="cmd-title">🎭 Roles</div>
+              <div class="cmd-title">ðŸŽ­ Roles</div>
               <code>/roles create [ch_id]</code><br><code>/roles add [gid] [role_id]</code>
             </div>
             <div class="cmd-card">
-              <div class="cmd-title">🔊 Auto VC</div>
+              <div class="cmd-title">ðŸ”Š Auto VC</div>
               <code>/setupvoice create</code><br><code>/vc limit /vc lock</code>
             </div>
             <div class="cmd-card">
-              <div class="cmd-title">📈 Status</div>
+              <div class="cmd-title">ðŸ“ˆ Status</div>
               <code>/status setup</code><br><code>/status refresh</code>
             </div>
             <div class="cmd-card">
-              <div class="cmd-title">🔴 Streaming</div>
+              <div class="cmd-title">ðŸ”´ Streaming</div>
               <code>/streaming setup [ch] [role]</code><br><code>/streaming test</code>
             </div>
           </div>
@@ -165,41 +165,72 @@
         <!-- System Control -->
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">🖥️ System Control</h2>
+            <h2 class="card-title">ðŸ–¥ï¸ System Control</h2>
             <div style="display:flex;align-items:center;gap:10px">
               <span id="sys-status-dot" style="width:10px;height:10px;border-radius:50%;background:#6b7280;display:inline-block"></span>
               <span id="sys-status-text" style="font-size:13px;color:var(--text3)">Cek status...</span>
             </div>
           </div>
           <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
-            <button class="btn-primary" id="restartBtn" onclick="restartBot()">🔄 Restart Bot</button>
-            <button class="btn-sm" onclick="checkBotStatus()">📡 Cek Status</button>
-            <button class="btn-sm" onclick="loadBotLogs()">📋 Lihat Log</button>
+            <button class="btn-primary" id="restartBtn" onclick="restartBot()">ðŸ”„ Restart Bot</button>
+            <button class="btn-sm" onclick="checkBotStatus()">ðŸ“¡ Cek Status</button>
+            <button class="btn-sm" onclick="loadBotLogs()">ðŸ“‹ Lihat Log</button>
           </div>
           <div class="alert" id="sys-alert" style="display:none"></div>
           <div id="sys-log-box" style="display:none;background:#0d0d14;border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;max-height:250px;overflow-y:auto;font-family:monospace;font-size:12px;color:#a3a3a3;line-height:1.6"></div>
         </div>
+
+        <!-- Daily Restart -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">â° Daily Restart Bot</h2>
+            <span id="sched-next" style="font-size:12px;color:var(--text3)">Loading...</span>
+          </div>
+          <div style="padding:20px;display:flex;flex-direction:column;gap:16px">
+            <!-- Toggle -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+              <div>
+                <div style="font-size:14px;font-weight:600;color:var(--text)">Auto Restart Harian</div>
+                <div style="font-size:12px;color:var(--text3);margin-top:3px">Bot akan restart otomatis setiap hari pada jam yang ditentukan (WIB)</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="sched-enabled" onchange="saveSchedule()"/>
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+            <!-- Time Picker -->
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <div class="form-group" style="margin:0;flex:0 0 auto">
+                <label>Jam Restart (WIB)</label>
+                <input type="time" id="sched-time" value="04:00"
+                  style="width:160px" onchange="saveSchedule()"/>
+              </div>
+              <div id="sched-status" style="font-size:13px;color:var(--text3);margin-top:20px"></div>
+            </div>
+            <div class="alert success" id="sched-alert" style="display:none"></div>
+          </div>
+        </div>
       </div>
 
 
-      <!-- ── WELCOME ── -->
+      <!-- â”€â”€ WELCOME â”€â”€ -->
       <div class="page" id="page-welcome">
         <div class="card">
-          <div class="card-header"><h2 class="card-title">👋 Welcome & Leave Config</h2></div>
+          <div class="card-header"><h2 class="card-title">ðŸ‘‹ Welcome & Leave Config</h2></div>
           <div class="form-row">
             <div class="form-group">
               <label>Guild ID</label>
               <input type="text" id="wl-guild" placeholder="Guild ID server"/>
             </div>
             <div style="display:flex;align-items:flex-end">
-              <button class="btn-primary" onclick="loadWelcome()">📥 Load Config</button>
+              <button class="btn-primary" onclick="loadWelcome()">ðŸ“¥ Load Config</button>
             </div>
           </div>
         </div>
 
         <div class="two-col">
           <div class="card">
-            <div class="card-header"><h2 class="card-title">🟢 Welcome</h2></div>
+            <div class="card-header"><h2 class="card-title">ðŸŸ¢ Welcome</h2></div>
             <div class="form-group">
               <label>Channel ID</label>
               <input type="text" id="wl-wch" placeholder="Channel ID (angka)"/>
@@ -213,7 +244,7 @@
           </div>
 
           <div class="card">
-            <div class="card-header"><h2 class="card-title">🔴 Leave</h2></div>
+            <div class="card-header"><h2 class="card-title">ðŸ”´ Leave</h2></div>
             <div class="form-group">
               <label>Channel ID</label>
               <input type="text" id="wl-lch" placeholder="Channel ID (angka)"/>
@@ -226,34 +257,34 @@
         </div>
 
         <div style="display:flex;gap:12px;justify-content:flex-end">
-          <button class="btn-primary" onclick="saveWelcome()">💾 Simpan Config</button>
+          <button class="btn-primary" onclick="saveWelcome()">ðŸ’¾ Simpan Config</button>
         </div>
         <div class="alert" id="wl-alert" style="display:none"></div>
       </div>
 
-      <!-- ── ROLES ── -->
+      <!-- â”€â”€ ROLES â”€â”€ -->
       <div class="page" id="page-roles">
         <div class="card">
-          <div class="card-header"><h2 class="card-title">🎭 Role Panel Manager</h2></div>
+          <div class="card-header"><h2 class="card-title">ðŸŽ­ Role Panel Manager</h2></div>
           <div class="form-row">
             <div class="form-group">
               <label>Guild ID</label>
               <input type="text" id="roles-guild" placeholder="Guild ID"/>
             </div>
             <div style="display:flex;align-items:flex-end">
-              <button class="btn-primary" onclick="loadRoles()">📥 Load Panels</button>
+              <button class="btn-primary" onclick="loadRoles()">ðŸ“¥ Load Panels</button>
             </div>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title">➕ Buat Panel Baru</h2></div>
+          <div class="card-header"><h2 class="card-title">âž• Buat Panel Baru</h2></div>
           <div class="form-row">
             <div class="form-group"><label>Channel ID</label><input type="text" id="r-chid" placeholder="Channel ID"/></div>
-            <div class="form-group"><label>Judul Panel</label><input type="text" id="r-title" placeholder="🎭 Pilih Role Kamu"/></div>
+            <div class="form-group"><label>Judul Panel</label><input type="text" id="r-title" placeholder="ðŸŽ­ Pilih Role Kamu"/></div>
             <div class="form-group"><label>Deskripsi</label><input type="text" id="r-desc" placeholder="Pilih role..."/></div>
             <div style="display:flex;align-items:flex-end">
-              <button class="btn-primary" onclick="createPanel()">✨ Buat Panel</button>
+              <button class="btn-primary" onclick="createPanel()">âœ¨ Buat Panel</button>
             </div>
           </div>
         </div>
@@ -262,41 +293,41 @@
         <div class="alert" id="roles-alert" style="display:none"></div>
       </div>
 
-      <!-- ── AUTO VOICE ── -->
+      <!-- â”€â”€ AUTO VOICE â”€â”€ -->
       <div class="page" id="page-autovoice">
         <div class="card">
-          <div class="card-header"><h2 class="card-title">🔊 Auto Voice Channel</h2></div>
+          <div class="card-header"><h2 class="card-title">ðŸ”Š Auto Voice Channel</h2></div>
           <div class="form-row">
             <div class="form-group"><label>Guild ID</label><input type="text" id="av-guild" placeholder="Guild ID"/></div>
             <div style="display:flex;align-items:flex-end;gap:8px">
-              <button class="btn-primary" onclick="loadAutoVoice()">📥 Load</button>
-              <button class="btn-sm" onclick="loadActiveVCs()">🔄 Refresh VCs</button>
+              <button class="btn-primary" onclick="loadAutoVoice()">ðŸ“¥ Load</button>
+              <button class="btn-sm" onclick="loadActiveVCs()">ðŸ”„ Refresh VCs</button>
             </div>
           </div>
         </div>
 
         <div class="two-col">
           <div class="card">
-            <div class="card-header"><h2 class="card-title">⚙️ Konfigurasi Hub</h2></div>
+            <div class="card-header"><h2 class="card-title">âš™ï¸ Konfigurasi Hub</h2></div>
             <div class="form-group">
               <label>Trigger Channel ID (Voice Channel)</label>
               <input type="text" id="av-chid" placeholder="Voice Channel ID"/>
               <div class="hint">Member yang join channel ini akan otomatis dibuatkan VC baru.</div>
             </div>
             <div style="display:flex;gap:12px">
-              <button class="btn-primary" onclick="saveAutoVoice()">💾 Simpan</button>
-              <button class="btn-danger" onclick="disableAutoVoice()">🗑 Disable</button>
+              <button class="btn-primary" onclick="saveAutoVoice()">ðŸ’¾ Simpan</button>
+              <button class="btn-danger" onclick="disableAutoVoice()">ðŸ—‘ Disable</button>
             </div>
             <div class="alert" id="av-alert" style="display:none"></div>
           </div>
 
           <div class="card">
-            <div class="card-header"><h2 class="card-title">📖 Cara Setup Cepat</h2></div>
+            <div class="card-header"><h2 class="card-title">ðŸ“– Cara Setup Cepat</h2></div>
             <div class="info-list">
               <div class="info-item"><span class="info-num">1</span> Di Discord, jalankan <code>/setupvoice create</code></div>
-              <div class="info-item"><span class="info-num">2</span> Bot otomatis buat kategori <strong>🔊 Voice Hub</strong> + hub channel</div>
-              <div class="info-item"><span class="info-num">3</span> Member join hub → VC baru dibuat otomatis untuknya</div>
-              <div class="info-item"><span class="info-num">4</span> VC kosong → dihapus otomatis oleh bot</div>
+              <div class="info-item"><span class="info-num">2</span> Bot otomatis buat kategori <strong>ðŸ”Š Voice Hub</strong> + hub channel</div>
+              <div class="info-item"><span class="info-num">3</span> Member join hub â†’ VC baru dibuat otomatis untuknya</div>
+              <div class="info-item"><span class="info-num">4</span> VC kosong â†’ dihapus otomatis oleh bot</div>
               <div class="info-item"><span class="info-num">5</span> Atau set Channel ID manual di form kiri lalu klik Simpan</div>
             </div>
           </div>
@@ -304,8 +335,8 @@
 
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">📡 Active Voice Channels</h2>
-            <span id="av-vc-count" style="font-size:13px;color:var(--text3)">—</span>
+            <h2 class="card-title">ðŸ“¡ Active Voice Channels</h2>
+            <span id="av-vc-count" style="font-size:13px;color:var(--text3)">â€”</span>
           </div>
           <div class="table-wrap">
             <table class="table" id="av-vcs-table">
@@ -320,14 +351,14 @@
                 </tr>
               </thead>
               <tbody id="av-vcs-body">
-                <tr><td colspan="6" class="text-center text-muted">Load Guild ID lalu klik 🔄 Refresh VCs</td></tr>
+                <tr><td colspan="6" class="text-center text-muted">Load Guild ID lalu klik ðŸ”„ Refresh VCs</td></tr>
               </tbody>
             </table>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title">📋 Perintah VC (via Discord)</h2></div>
+          <div class="card-header"><h2 class="card-title">ðŸ“‹ Perintah VC (via Discord)</h2></div>
           <div class="commands-grid">
             <div class="cmd-card"><code>/setupvoice create</code><br><small>Setup otomatis + buat hub channel baru</small></div>
             <div class="cmd-card"><code>/setupvoice remove</code><br><small>Nonaktifkan auto voice</small></div>
@@ -343,19 +374,19 @@
       </div>
 
 
-      <!-- ── STATUS ── -->
+      <!-- â”€â”€ STATUS â”€â”€ -->
       <div class="page" id="page-status">
         <div class="card">
-          <div class="card-header"><h2 class="card-title">📈 Status Channel Config</h2></div>
+          <div class="card-header"><h2 class="card-title">ðŸ“ˆ Status Channel Config</h2></div>
           <div class="form-row">
             <div class="form-group"><label>Guild ID</label><input type="text" id="sc-guild" placeholder="Guild ID"/></div>
             <div style="display:flex;align-items:flex-end">
-              <button class="btn-primary" onclick="loadStatus()">📥 Load</button>
+              <button class="btn-primary" onclick="loadStatus()">ðŸ“¥ Load</button>
             </div>
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><h2 class="card-title">⚙️ Konfigurasi</h2></div>
+          <div class="card-header"><h2 class="card-title">âš™ï¸ Konfigurasi</h2></div>
           <div class="two-col">
             <div class="form-group">
               <label>Member Counter Channel ID</label>
@@ -368,12 +399,12 @@
             </div>
           </div>
           <div style="display:flex;gap:12px">
-            <button class="btn-primary" onclick="saveStatus()">💾 Simpan</button>
+            <button class="btn-primary" onclick="saveStatus()">ðŸ’¾ Simpan</button>
           </div>
           <div class="alert" id="sc-alert" style="display:none"></div>
         </div>
         <div class="card">
-          <div class="card-header"><h2 class="card-title">ℹ️ Cara Setup Cepat</h2></div>
+          <div class="card-header"><h2 class="card-title">â„¹ï¸ Cara Setup Cepat</h2></div>
           <div class="info-list">
             <div class="info-item"><span class="info-num">1</span> Di Discord, jalankan <code>/status setup</code></div>
             <div class="info-item"><span class="info-num">2</span> Bot otomatis buat kategori + 2 channel VC</div>
@@ -383,19 +414,19 @@
         </div>
       </div>
 
-      <!-- ── STREAMING ── -->
+      <!-- â”€â”€ STREAMING â”€â”€ -->
       <div class="page" id="page-streaming">
         <div class="card">
-          <div class="card-header"><h2 class="card-title">🔴 Streaming Notification Config</h2></div>
+          <div class="card-header"><h2 class="card-title">ðŸ”´ Streaming Notification Config</h2></div>
           <div class="form-row">
             <div class="form-group"><label>Guild ID</label><input type="text" id="st-guild" placeholder="Guild ID"/></div>
             <div style="display:flex;align-items:flex-end">
-              <button class="btn-primary" onclick="loadStreaming()">📥 Load</button>
+              <button class="btn-primary" onclick="loadStreaming()">ðŸ“¥ Load</button>
             </div>
           </div>
         </div>
         <div class="card">
-          <div class="card-header"><h2 class="card-title">⚙️ Konfigurasi</h2></div>
+          <div class="card-header"><h2 class="card-title">âš™ï¸ Konfigurasi</h2></div>
           <div class="two-col">
             <div class="form-group">
               <label>Notif Channel ID</label>
@@ -403,53 +434,53 @@
               <div class="hint">Channel tempat notifikasi streaming dikirim. (Opsional)</div>
             </div>
             <div class="form-group">
-              <label>🎭 Streamer Role ID</label>
+              <label>ðŸŽ­ Streamer Role ID</label>
               <input type="text" id="st-rid" placeholder="Role ID (angka)"/>
               <div class="hint">Hanya member dengan role ini yang dideteksi sebagai streamer.</div>
             </div>
             <div class="form-group">
-              <label>🔴 On Stream Role ID</label>
+              <label>ðŸ”´ On Stream Role ID</label>
               <input type="text" id="st-orid" placeholder="Role ID (angka)"/>
               <div class="hint">Role ini otomatis ditambah saat live & dihapus saat offline.</div>
             </div>
           </div>
           <div style="display:flex;gap:12px">
-            <button class="btn-primary" onclick="saveStreaming()">💾 Simpan</button>
-            <button class="btn-danger" onclick="disableStreaming()">🗑 Disable</button>
+            <button class="btn-primary" onclick="saveStreaming()">ðŸ’¾ Simpan</button>
+            <button class="btn-danger" onclick="disableStreaming()">ðŸ—‘ Disable</button>
           </div>
           <div class="alert" id="st-alert" style="display:none"></div>
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title">📡 Platform yang Didukung</h2></div>
+          <div class="card-header"><h2 class="card-title">ðŸ“¡ Platform yang Didukung</h2></div>
           <div class="commands-grid">
             <div class="cmd-card" style="border-color:rgba(255,0,0,0.2)">
-              <div class="cmd-title">🎬 YouTube</div>
+              <div class="cmd-title">ðŸŽ¬ YouTube</div>
               <small>Deteksi via Discord Activity + YouTube API v3 (jika API key diset)</small>
             </div>
             <div class="cmd-card" style="border-color:rgba(0,0,0,0.4)">
-              <div class="cmd-title">🎵 TikTok</div>
+              <div class="cmd-title">ðŸŽµ TikTok</div>
               <small>Deteksi via Discord Activity (streaming ke Discord)</small>
             </div>
             <div class="cmd-card" style="border-color:rgba(145,70,255,0.3)">
-              <div class="cmd-title">🟣 Twitch</div>
+              <div class="cmd-title">ðŸŸ£ Twitch</div>
               <small>Deteksi otomatis via Discord Streaming Activity</small>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ── STREAMERS ── -->
+      <!-- â”€â”€ STREAMERS â”€â”€ -->
       <div class="page" id="page-streamers">
         <!-- Platform Tabs -->
         <div class="card" style="padding:0;overflow:hidden">
           <div style="display:flex;border-bottom:1px solid rgba(255,255,255,0.07)">
             <button class="streamer-tab active" id="tab-youtube" onclick="switchStreamerTab('youtube')">
-              <span>▶</span> YouTube
+              <span>â–¶</span> YouTube
               <span class="badge" id="yt-count">0/30</span>
             </button>
             <button class="streamer-tab" id="tab-tiktok" onclick="switchStreamerTab('tiktok')">
-              <span>🎵</span> TikTok
+              <span>ðŸŽµ</span> TikTok
               <span class="badge" id="tt-count">0/10</span>
             </button>
           </div>
@@ -457,23 +488,23 @@
 
         <!-- Search + Add -->
         <div style="display:flex;gap:12px;align-items:center;margin:16px 0">
-          <input type="text" id="streamer-search" placeholder="🔍 Cari channel..."
+          <input type="text" id="streamer-search" placeholder="ðŸ” Cari channel..."
             style="flex:1;max-width:320px" oninput="filterStreamerList()"/>
           <button class="btn-primary" onclick="openAddStreamerModal()">
-            ➕ Add Channel
+            âž• Add Channel
           </button>
         </div>
 
         <!-- Guild ID input -->
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
           <input type="text" id="st-guild" placeholder="Guild ID" style="max-width:200px"/>
-          <button class="btn-sm" onclick="loadStreamers()">📥 Load</button>
+          <button class="btn-sm" onclick="loadStreamers()">ðŸ“¥ Load</button>
         </div>
 
         <!-- Channel List -->
         <div class="card">
           <div id="streamer-empty" style="display:none;text-align:center;padding:60px 0;color:var(--text3)">
-            <div style="font-size:48px;margin-bottom:12px">📡</div>
+            <div style="font-size:48px;margin-bottom:12px">ðŸ“¡</div>
             <div style="font-size:16px;font-weight:600;color:var(--text2)">Belum ada channel</div>
             <div style="font-size:13px;margin-top:8px">Klik <b>+ Add Channel</b> untuk mulai tracking</div>
           </div>
@@ -499,12 +530,12 @@
 
     </div><!-- /page-container -->
 
-  <!-- ── MODAL: Add Streamer Channel ── -->
+  <!-- â”€â”€ MODAL: Add Streamer Channel â”€â”€ -->
   <div class="modal-overlay" id="streamerModal" style="display:none">
     <div class="modal-box" style="max-width:560px">
       <div class="modal-header">
-        <h3 class="modal-title" id="streamerModalTitle">➕ Add Channel</h3>
-        <button class="modal-close" onclick="closeStreamerModal()">✕</button>
+        <h3 class="modal-title" id="streamerModalTitle">âž• Add Channel</h3>
+        <button class="modal-close" onclick="closeStreamerModal()">âœ•</button>
       </div>
       <div class="modal-body">
         <div class="form-row">
@@ -515,8 +546,8 @@
           <div class="form-group">
             <label>Platform</label>
             <select id="sm-platform">
-              <option value="youtube">▶ YouTube</option>
-              <option value="tiktok">🎵 TikTok</option>
+              <option value="youtube">â–¶ YouTube</option>
+              <option value="tiktok">ðŸŽµ TikTok</option>
             </select>
           </div>
         </div>
@@ -534,8 +565,8 @@
           <div class="form-group">
             <label>Status</label>
             <select id="sm-status">
-              <option value="running">▶ Running</option>
-              <option value="paused">⏸ Paused</option>
+              <option value="running">â–¶ Running</option>
+              <option value="paused">â¸ Paused</option>
             </select>
           </div>
           <div class="form-group">
@@ -559,13 +590,13 @@
       </div>
       <div class="modal-footer">
         <button class="btn-sm" onclick="closeStreamerModal()">Cancel</button>
-        <button class="btn-primary" id="sm-save-btn" onclick="saveStreamerChannel()">➕ Add Channel</button>
+        <button class="btn-primary" id="sm-save-btn" onclick="saveStreamerChannel()">âž• Add Channel</button>
       </div>
     </div>
   </div>
 
   </main>
 
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>

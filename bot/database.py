@@ -94,6 +94,14 @@ async def init_db():
                 last_video_id       TEXT,
                 created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS bot_schedule (
+                id                     INTEGER PRIMARY KEY DEFAULT 1,
+                daily_restart_enabled  INTEGER DEFAULT 0,
+                daily_restart_time     TEXT    DEFAULT '04:00',
+                updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT OR IGNORE INTO bot_schedule (id) VALUES (1);
         """)
         await db.commit()
 
@@ -345,5 +353,27 @@ async def delete_tracked_streamer(streamer_id: int, guild_id: int) -> None:
         await db.execute(
             "DELETE FROM tracked_streamers WHERE id = ? AND guild_id = ?",
             (streamer_id, guild_id)
+        )
+        await db.commit()
+
+# ── Bot Schedule ─────────────────────────────────────────────────────
+
+async def get_schedule_config() -> dict:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM bot_schedule WHERE id = 1") as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else {"daily_restart_enabled": 0, "daily_restart_time": "04:00"}
+
+async def set_schedule_config(enabled: bool, restart_time: str) -> None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            """INSERT INTO bot_schedule (id, daily_restart_enabled, daily_restart_time, updated_at)
+               VALUES (1, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(id) DO UPDATE SET
+                 daily_restart_enabled = excluded.daily_restart_enabled,
+                 daily_restart_time    = excluded.daily_restart_time,
+                 updated_at            = CURRENT_TIMESTAMP""",
+            (1 if enabled else 0, restart_time)
         )
         await db.commit()
