@@ -39,7 +39,10 @@
         <span class="nav-icon">🔴</span><span>Streaming Notif</span>
       </a>
       <a href="#" class="nav-item" data-page="streamers">
-        <span class="nav-icon">📡</span><span>Streamer Tracker</span>
+        <span class="nav-icon">&#128225;</span><span>Streamer Tracker</span>
+      </a>
+      <a href="#" class="nav-item" data-page="standby">
+        <span class="nav-icon">&#127911;</span><span>Standby Voice 24/7</span>
       </a>
     </nav>
 
@@ -594,6 +597,85 @@
 
   </main>
 
-  <script src="/static/app.js?v=7"></script>
+  <!-- ── STANDBY PAGE (injected via JS showPage) ────── -->
+  <!-- Page inserted dynamically inside #pageContainer -->
+
+  <!-- Standby Voice 24/7 Page -->
+  <template id="tpl-standby">
+    <div class="page" id="page-standby">
+
+      <!-- Header card -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">&#127911; Standby Voice 24/7</h2>
+          <span style="font-size:12px;color:var(--text3)">Bot stay di voice channel tanpa disconnect</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Guild ID</label>
+            <input type="text" id="sb-guild" placeholder="ID server Discord"/>
+          </div>
+          <div style="display:flex;align-items:flex-end;gap:8px">
+            <button class="btn-primary" onclick="loadStandby()">&#128229; Load</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Config card -->
+      <div class="card" id="sb-config-card" style="display:none">
+        <div class="card-header">
+          <h2 class="card-title">&#9881; Konfigurasi Standby</h2>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="sb-status-dot" style="width:10px;height:10px;border-radius:50%;background:#6b7280;display:inline-block"></span>
+            <span id="sb-status-text" style="font-size:13px;color:var(--text3)">Tidak Aktif</span>
+          </div>
+        </div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:20px">
+
+          <!-- Toggle -->
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--text)">Bot Standby Aktif</div>
+              <div style="font-size:12px;color:var(--text3);margin-top:3px">Bot akan selalu berada di voice channel yang dipilih</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="sb-enabled" onchange="toggleStandby()"/>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+
+          <!-- Channel ID input -->
+          <div class="form-group" style="margin:0">
+            <label>Voice Channel ID <span class="req">*</span></label>
+            <input type="text" id="sb-channel-id" placeholder="ID voice channel (klik kanan channel &#8594; Copy ID)"/>
+            <span class="hint">Klik kanan voice channel di Discord &#8594; Copy Channel ID</span>
+          </div>
+
+          <!-- Buttons -->
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn-primary" onclick="saveStandby()">&#128190; Simpan</button>
+            <button class="btn-danger" onclick="stopStandby()">&#9209; Stop &amp; Keluarkan Bot</button>
+          </div>
+
+          <div class="alert success" id="sb-alert" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Info card -->
+      <div class="card">
+        <div class="card-header"><h2 class="card-title">&#8505; Cara Pakai</h2></div>
+        <div class="info-list">
+          <div class="info-item"><div class="info-num">1</div>Masukkan Guild ID dan klik Load</div>
+          <div class="info-item"><div class="info-num">2</div>Masukkan ID voice channel yang diinginkan</div>
+          <div class="info-item"><div class="info-num">3</div>Aktifkan toggle dan klik Simpan</div>
+          <div class="info-item"><div class="info-num">4</div>Bot otomatis join dan stay 24/7 &#8212; auto rejoin jika disconnect</div>
+          <div class="info-item"><div class="info-num">5</div>Bisa juga pakai command <code>/standby set [channel]</code> di Discord</div>
+        </div>
+      </div>
+
+    </div>
+  </template>
+
+  <script src="/static/app.js?v=8"></script>
 </body>
 </html>

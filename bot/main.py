@@ -19,6 +19,7 @@ COGS = [
     "bot.cogs.status",
     "bot.cogs.streaming",
     "bot.cogs.stream_notif",
+    "bot.cogs.standby",
     "bot.cogs.help",
 ]
 

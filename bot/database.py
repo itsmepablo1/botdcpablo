@@ -102,6 +102,13 @@ async def init_db():
                 updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             INSERT OR IGNORE INTO bot_schedule (id) VALUES (1);
+
+            CREATE TABLE IF NOT EXISTS standby_channels (
+                guild_id    INTEGER PRIMARY KEY,
+                channel_id  INTEGER NOT NULL,
+                enabled     INTEGER DEFAULT 1,
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         await db.commit()
 
@@ -377,3 +384,45 @@ async def set_schedule_config(enabled: bool, restart_time: str) -> None:
             (1 if enabled else 0, restart_time)
         )
         await db.commit()
+
+# ── Standby Channel ────────────────────────────────────────────────
+
+async def get_standby(guild_id: int) -> dict | None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM standby_channels WHERE guild_id = ?", (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+async def set_standby(guild_id: int, channel_id: int, enabled: bool = True) -> None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            """INSERT INTO standby_channels (guild_id, channel_id, enabled, updated_at)
+               VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+               ON CONFLICT(guild_id) DO UPDATE SET
+                 channel_id = excluded.channel_id,
+                 enabled    = excluded.enabled,
+                 updated_at = CURRENT_TIMESTAMP""",
+            (guild_id, channel_id, 1 if enabled else 0)
+        )
+        await db.commit()
+
+async def disable_standby(guild_id: int) -> None:
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE standby_channels SET enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE guild_id = ?",
+            (guild_id,)
+        )
+        await db.commit()
+
+async def get_all_standby() -> list[dict]:
+    """Ambil semua standby yang enabled untuk background loop."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM standby_channels WHERE enabled = 1"
+        ) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]

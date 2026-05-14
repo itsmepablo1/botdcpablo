@@ -72,12 +72,14 @@ function restoreGuildIds() {
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 const PAGE_TITLES = {
-  dashboard:  ['Dashboard',          'Overview semua fitur bot'],
-  welcome:    ['Welcome / Leave',    'Konfigurasi pesan selamat datang & perpisahan'],
-  roles:      ['Role Selector',      'Kelola panel role dropdown'],
-  autovoice:  ['Auto Voice Channel', 'Konfigurasi auto-create voice channel'],
-  status:     ['Status Channel',     'Realtime member & online counter'],
-  streaming:  ['Streaming Notif',    'Notifikasi live streaming'],
+  dashboard:  ['Dashboard',             'Overview semua fitur bot'],
+  welcome:    ['Welcome / Leave',       'Konfigurasi pesan selamat datang & perpisahan'],
+  roles:      ['Role Selector',         'Kelola panel role dropdown'],
+  autovoice:  ['Auto Voice Channel',    'Konfigurasi auto-create voice channel'],
+  status:     ['Status Channel',        'Realtime member & online counter'],
+  streaming:  ['Streaming Notif',       'Notifikasi live streaming'],
+  streamers:  ['Streamer Tracker',      'Pantau YouTube & TikTok channel'],
+  standby:    ['Standby Voice 24/7',    'Bot stay di voice channel tanpa disconnect'],
 };
 
 function setupNav() {
@@ -93,31 +95,40 @@ function setupNav() {
 }
 
 function navigateTo(page) {
+  // Inject template jika halaman belum ada di DOM
+  if (!document.getElementById('page-' + page)) {
+    const tpl = document.getElementById('tpl-' + page);
+    if (tpl) {
+      const node = tpl.content.cloneNode(true);
+      document.getElementById('pageContainer').appendChild(node);
+    }
+  }
+
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
 
-  const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
-  const pageEl  = document.getElementById(`page-${page}`);
+  const navItem = document.querySelector('.nav-item[data-page="' + page + '"]');
+  const pageEl  = document.getElementById('page-' + page);
   if (navItem) navItem.classList.add('active');
   if (pageEl)  pageEl.classList.add('active');
 
-  const [title, sub] = PAGE_TITLES[page] || [page, ''];
-  document.getElementById('pageTitle').textContent = title;
-  document.getElementById('pageSub').textContent   = sub;
+  const titles = PAGE_TITLES[page] || [page, ''];
+  document.getElementById('pageTitle').textContent = titles[0];
+  document.getElementById('pageSub').textContent   = titles[1];
 
   // Auto-load kalau guild ID sudah tersimpan
   const fieldId = GUILD_ID_FIELDS[page];
   if (fieldId) {
-    const saved = localStorage.getItem(`gid_${page}`);
+    const saved = localStorage.getItem('gid_' + page);
     const el = document.getElementById(fieldId);
     if (el && saved) {
       el.value = saved;
-      // Auto-load per halaman
       if (page === 'welcome')   loadWelcome();
       if (page === 'roles')     loadRoles();
       if (page === 'autovoice') loadAutoVoice();
       if (page === 'status')    loadStatus();
       if (page === 'streaming') loadStreaming();
+      if (page === 'standby')   loadStandby();
     }
   }
 }
@@ -851,4 +862,91 @@ async function saveSchedule() {
   } finally {
     _schedSaving = false;
   }
+}
+
+
+// __ Standby Voice 24/7 _______________________________________________________
+
+let _standbyGuild = null;
+
+async function loadStandby() {
+  const guildId = document.getElementById('sb-guild') && document.getElementById('sb-guild').value.trim();
+  if (!guildId) return alert('Masukkan Guild ID dulu!');
+  _standbyGuild = guildId;
+  try {
+    const res = await apiFetch('/api/standby/' + guildId);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    var card = document.getElementById('sb-config-card');
+    if (card) card.style.display = '';
+    var enabledEl = document.getElementById('sb-enabled');
+    var channelEl = document.getElementById('sb-channel-id');
+    if (enabledEl) enabledEl.checked = !!data.enabled;
+    if (channelEl && data.channel_id) channelEl.value = data.channel_id;
+    _updateStandbyUI(!!data.enabled);
+  } catch(e) { alert('Gagal load: ' + e.message); }
+}
+
+function _updateStandbyUI(enabled) {
+  var dot  = document.getElementById('sb-status-dot');
+  var text = document.getElementById('sb-status-text');
+  if (!dot) return;
+  if (enabled) {
+    dot.style.background = '#22c55e';
+    dot.style.boxShadow  = '0 0 0 3px rgba(34,197,94,0.2)';
+    text.textContent     = 'Aktif - bot standby 24/7';
+    text.style.color     = '#22c55e';
+  } else {
+    dot.style.background = '#6b7280';
+    dot.style.boxShadow  = 'none';
+    text.textContent     = 'Tidak Aktif';
+    text.style.color     = 'var(--text3)';
+  }
+}
+
+function toggleStandby() { saveStandby(); }
+
+async function saveStandby() {
+  if (!_standbyGuild) return alert('Load guild dulu!');
+  var channelEl = document.getElementById('sb-channel-id');
+  var enabledEl = document.getElementById('sb-enabled');
+  var alertEl   = document.getElementById('sb-alert');
+  var channelId = channelEl ? channelEl.value.trim() : '';
+  if (!channelId) return alert('Masukkan Voice Channel ID!');
+  if (isNaN(Number(channelId))) return alert('Channel ID harus berupa angka!');
+  try {
+    var res = await apiFetch('/api/standby/' + _standbyGuild, {
+      method: 'POST',
+      body: JSON.stringify({ channel_id: Number(channelId), enabled: enabledEl ? enabledEl.checked : true })
+    });
+    if (!res.ok) { var err = await res.json().catch(function(){ return {}; }); throw new Error(err.detail || 'HTTP ' + res.status); }
+    var data = await res.json();
+    if (data.ok) {
+      var isEnabled = enabledEl ? enabledEl.checked : true;
+      _updateStandbyUI(isEnabled);
+      if (alertEl) {
+        alertEl.textContent = isEnabled ? 'Standby aktif! Bot akan join voice channel.' : 'Standby dimatikan.';
+        alertEl.style.display = 'block';
+        setTimeout(function(){ alertEl.style.display = 'none'; }, 3000);
+      }
+    } else { alert('Gagal: ' + (data.error || 'Unknown')); }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function stopStandby() {
+  if (!_standbyGuild) return alert('Load guild dulu!');
+  if (!confirm('Hentikan standby dan keluarkan bot dari voice channel?')) return;
+  try {
+    var res = await apiFetch('/api/standby/' + _standbyGuild, { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var enabledEl = document.getElementById('sb-enabled');
+    if (enabledEl) enabledEl.checked = false;
+    _updateStandbyUI(false);
+    var alertEl = document.getElementById('sb-alert');
+    if (alertEl) {
+      alertEl.textContent = 'Standby dihentikan. Bot akan keluar dari voice channel.';
+      alertEl.style.display = 'block';
+      setTimeout(function(){ alertEl.style.display = 'none'; }, 4000);
+    }
+  } catch(e) { alert('Error: ' + e.message); }
 }

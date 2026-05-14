@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from panel.routers import auth, dashboard, welcome, roles, autovoice, statuscfg, streaming, system, streamers, schedule
+from panel.routers import auth, dashboard, welcome, roles, autovoice, statuscfg, streaming, system, streamers, schedule, standby
 
 WIB = timezone(timedelta(hours=7))
 
@@ -34,6 +34,7 @@ app.include_router(statuscfg.router,  prefix="/api/status",    tags=["status"])
 app.include_router(streaming.router,  prefix="/api/streaming", tags=["streaming"])
 app.include_router(streamers.router,  prefix="/api/streamers", tags=["streamers"])
 app.include_router(schedule.router,   prefix="/api/schedule",  tags=["schedule"])
+app.include_router(standby.router,    prefix="/api/standby",   tags=["standby"])
 app.include_router(system.router,     prefix="/api/system",    tags=["system"])
 
 # ── Static Files ──────────────────────────────────────────────────────────────
