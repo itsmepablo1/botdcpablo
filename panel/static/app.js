@@ -55,6 +55,7 @@ const GUILD_ID_FIELDS = {
   autovoice: 'av-guild',
   status:    'sc-guild',
   streaming: 'st-guild',
+  standby:   'sb-guild',
 };
 
 function saveGuildId(page, value) {
@@ -925,9 +926,25 @@ async function saveStandby() {
       var isEnabled = enabledEl ? enabledEl.checked : true;
       _updateStandbyUI(isEnabled);
       if (alertEl) {
-        alertEl.textContent = isEnabled ? 'Standby aktif! Bot akan join voice channel.' : 'Standby dimatikan.';
-        alertEl.style.display = 'block';
-        setTimeout(function(){ alertEl.style.display = 'none'; }, 3000);
+        if (isEnabled) {
+          var secs = 30;
+          alertEl.textContent = 'Tersimpan! Bot akan join dalam ' + secs + ' detik...';
+          alertEl.style.display = 'block';
+          var timer = setInterval(function() {
+            secs--;
+            if (secs <= 0) {
+              clearInterval(timer);
+              alertEl.textContent = 'Bot sudah join! Cek voice channel kamu.';
+              setTimeout(function(){ alertEl.style.display = 'none'; }, 4000);
+            } else {
+              alertEl.textContent = 'Tersimpan! Bot akan join dalam ' + secs + ' detik...';
+            }
+          }, 1000);
+        } else {
+          alertEl.textContent = 'Standby dimatikan.';
+          alertEl.style.display = 'block';
+          setTimeout(function(){ alertEl.style.display = 'none'; }, 3000);
+        }
       }
     } else { alert('Gagal: ' + (data.error || 'Unknown')); }
   } catch(e) { alert('Error: ' + e.message); }
@@ -944,9 +961,9 @@ async function stopStandby() {
     _updateStandbyUI(false);
     var alertEl = document.getElementById('sb-alert');
     if (alertEl) {
-      alertEl.textContent = 'Standby dihentikan. Bot akan keluar dari voice channel.';
+      alertEl.textContent = 'Standby dihentikan. Bot akan keluar dalam maks 30 detik.';
       alertEl.style.display = 'block';
-      setTimeout(function(){ alertEl.style.display = 'none'; }, 4000);
+      setTimeout(function(){ alertEl.style.display = 'none'; }, 5000);
     }
   } catch(e) { alert('Error: ' + e.message); }
 }

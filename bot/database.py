@@ -426,3 +426,11 @@ async def get_all_standby() -> list[dict]:
         ) as cur:
             rows = await cur.fetchall()
             return [dict(r) for r in rows]
+
+async def get_all_standby_all() -> list[dict]:
+    """Ambil SEMUA standby (enabled & disabled) — untuk handle disconnect."""
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM standby_channels") as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]

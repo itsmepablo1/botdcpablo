@@ -101,7 +101,8 @@ class Standby(commands.Cog):
     async def standby_loop(self):
         await self.bot.wait_until_ready()
         try:
-            rows = await db.get_all_standby()
+            # Ambil SEMUA row (enabled & disabled) agar bisa handle disconnect
+            rows = await db.get_all_standby_all()
         except Exception as e:
             print(f"[Standby] DB error: {e}", flush=True)
             return
@@ -109,9 +110,7 @@ class Standby(commands.Cog):
         for row in rows:
             guild_id   = row["guild_id"]
             channel_id = row["channel_id"]
-
-            if guild_id in self._joining:
-                continue
+            enabled    = bool(row["enabled"])
 
             guild = self.bot.get_guild(guild_id)
             if not guild:
@@ -119,15 +118,28 @@ class Standby(commands.Cog):
 
             vc = guild.voice_client
 
-            # Kalau bot sedang di voice channel lain (musik sedang main) → skip
+            # ── Standby DIMATIKAN: disconnect bot jika masih di standby channel ──
+            if not enabled:
+                if vc and vc.channel and vc.channel.id == channel_id:
+                    try:
+                        await vc.disconnect(force=True)
+                        print(f"[Standby] Disconnect guild={guild_id} (standby disabled)", flush=True)
+                    except Exception as e:
+                        print(f"[Standby] Gagal disconnect: {e}", flush=True)
+                continue
+
+            # ── Standby AKTIF: pastikan bot ada di channel ──
+            if guild_id in self._joining:
+                continue
+
+            # Kalau bot sedang main musik di channel lain → skip
             if vc and vc.channel and vc.channel.id != channel_id:
                 continue
 
-            # Kalau sudah di standby channel → tidak perlu join ulang
+            # Sudah di standby channel → ok
             if vc and vc.is_connected() and vc.channel.id == channel_id:
                 continue
 
-            # Bot tidak ada di voice / terputus → rejoin standby channel
             channel = guild.get_channel(channel_id)
             if not channel or not isinstance(channel, discord.VoiceChannel):
                 continue
@@ -139,7 +151,6 @@ class Standby(commands.Cog):
                         await vc.disconnect(force=True)
                     except Exception:
                         pass
-
                 await channel.connect(self_deaf=True)
                 print(f"[Standby] Rejoin guild={guild_id} channel={channel.name}", flush=True)
             except Exception as e:
